@@ -25,6 +25,7 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Copy,
 } from 'lucide-react';
 import {
   Project,
@@ -33,6 +34,7 @@ import {
   DataRow,
   GeneratedCertificate,
   CanvasElement,
+  DynamicFieldDef,
   BrandingSettings,
 } from '../types';
 import { parseExcelFile } from '../lib/excelParser';
@@ -90,30 +92,30 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     paperSizeName: string;
   } | null>(null);
 
-  // Name position state over master template
-  const [namePosition, setNamePosition] = useState<{
-    x: number; // percentage or px
-    y: number;
-    width: number;
-    height: number;
-    fontFamily: string;
-    fontSize: number;
-    fontWeight: 'normal' | 'bold' | '800' | '900';
-    fontStyle: 'normal' | 'italic';
-    color: string;
-    align: 'center' | 'left' | 'right';
-  }>({
-    x: 197,
-    y: 340,
-    width: 400,
-    height: 50,
-    fontFamily: 'serif',
-    fontSize: 28,
-    fontWeight: 'bold',
-    fontStyle: 'normal',
-    color: '#0e1838',
-    align: 'center',
-  });
+  // Elements state over master template
+  const [templateElements, setTemplateElements] = useState<CanvasElement[]>([
+    {
+      id: 'el_name_slot',
+      type: 'dynamic_field',
+      name: 'Recipient Name',
+      dynamicFieldKey: 'NAME',
+      x: 197,
+      y: 340,
+      width: 400,
+      height: 50,
+      rotation: 0,
+      opacity: 1,
+      zIndex: 10,
+      text: '{{NAME}}',
+      fontFamily: 'serif',
+      fontSize: 28,
+      fontWeight: 'bold',
+      fontStyle: 'normal',
+      color: '#0e1838',
+      align: 'center',
+    },
+  ]);
+  const [selectedElementId, setSelectedElementId] = useState<string>('el_name_slot');
 
   // Name List State
   const [nameListFile, setNameListFile] = useState<File | null>(null);
@@ -121,6 +123,129 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   const [rows, setRows] = useState<DataRow[]>([]);
   const [selectedNameCol, setSelectedNameCol] = useState<string>('Name');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Helper functions to manage elements
+  const selectedElement = templateElements.find((el) => el.id === selectedElementId) || templateElements[0];
+
+  const updateSelectedElement = (updates: Partial<CanvasElement>) => {
+    if (!selectedElementId) return;
+    setTemplateElements((prev) =>
+      prev.map((el) => (el.id === selectedElementId ? { ...el, ...updates } : el))
+    );
+  };
+
+  const handleAddNameElement = () => {
+    const w = templateDetails?.width || 794;
+    const h = templateDetails?.height || 1123;
+    const newEl: CanvasElement = {
+      id: `el_name_${Date.now()}`,
+      type: 'dynamic_field',
+      name: 'Recipient Name',
+      dynamicFieldKey: 'NAME',
+      x: Math.round(w / 2 - 200),
+      y: Math.round(h * 0.35),
+      width: 400,
+      height: 50,
+      rotation: 0,
+      opacity: 1,
+      zIndex: templateElements.length + 1,
+      text: '{{NAME}}',
+      fontFamily: 'serif',
+      fontSize: 28,
+      fontWeight: 'bold',
+      fontStyle: 'normal',
+      color: '#0e1838',
+      align: 'center',
+    };
+    setTemplateElements((prev) => [...prev, newEl]);
+    setSelectedElementId(newEl.id);
+  };
+
+  const handleAddStaticText = (initialText = 'Enter custom certificate text here') => {
+    const w = templateDetails?.width || 794;
+    const h = templateDetails?.height || 1123;
+    const newEl: CanvasElement = {
+      id: `el_text_${Date.now()}`,
+      type: 'text',
+      name: 'Custom Text Block',
+      x: Math.round(w / 2 - 250),
+      y: Math.round(h * 0.48),
+      width: 500,
+      height: 45,
+      rotation: 0,
+      opacity: 1,
+      zIndex: templateElements.length + 1,
+      text: initialText,
+      fontFamily: 'sans-serif',
+      fontSize: 18,
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      color: '#334155',
+      align: 'center',
+    };
+    setTemplateElements((prev) => [...prev, newEl]);
+    setSelectedElementId(newEl.id);
+  };
+
+  const handleAddDynamicField = (fieldKey: string, fieldLabel?: string) => {
+    const w = templateDetails?.width || 794;
+    const h = templateDetails?.height || 1123;
+    const keyName = fieldKey.trim();
+    const newEl: CanvasElement = {
+      id: `el_dynamic_${Date.now()}`,
+      type: 'dynamic_field',
+      name: fieldLabel || keyName,
+      dynamicFieldKey: keyName,
+      x: Math.round(w / 2 - 200),
+      y: Math.round(h * 0.55),
+      width: 400,
+      height: 40,
+      rotation: 0,
+      opacity: 1,
+      zIndex: templateElements.length + 1,
+      text: `{{${keyName}}}`,
+      fontFamily: 'serif',
+      fontSize: 20,
+      fontWeight: 'bold',
+      fontStyle: 'normal',
+      color: '#0f172a',
+      align: 'center',
+    };
+    setTemplateElements((prev) => [...prev, newEl]);
+    setSelectedElementId(newEl.id);
+  };
+
+  const handleDeleteElement = (idToDelete: string) => {
+    if (templateElements.length <= 1) {
+      alert('Certificate must have at least one text or name field.');
+      return;
+    }
+    const filtered = templateElements.filter((el) => el.id !== idToDelete);
+    setTemplateElements(filtered);
+    if (selectedElementId === idToDelete && filtered.length > 0) {
+      setSelectedElementId(filtered[0].id);
+    }
+  };
+
+  const handleDuplicateElement = (idToDup: string) => {
+    const target = templateElements.find((el) => el.id === idToDup);
+    if (!target) return;
+    const dup: CanvasElement = {
+      ...target,
+      id: `el_${Date.now()}`,
+      y: Math.min((templateDetails?.height || 1123) - 50, target.y + 35),
+      zIndex: templateElements.length + 1,
+    };
+    setTemplateElements((prev) => [...prev, dup]);
+    setSelectedElementId(dup.id);
+  };
+
+  const handleCenterHorizontally = () => {
+    if (!selectedElement) return;
+    const w = templateDetails?.width || 794;
+    const newX = Math.round((w - selectedElement.width) / 2);
+    updateSelectedElement({ x: newX, align: 'center' });
+  };
 
   // Generation state
   const [genProgress, setGenProgress] = useState<{
@@ -192,13 +317,28 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           paperSizeName: result.paperSizeName,
         });
 
-        setNamePosition((prev) => ({
-          ...prev,
+        const defaultNameEl: CanvasElement = {
+          id: 'el_name_slot',
+          type: 'dynamic_field',
+          name: 'Recipient Name',
+          dynamicFieldKey: 'NAME',
           x: Math.round(result.width / 2 - 200),
           y: Math.round(result.height * 0.35),
           width: 400,
           height: 60,
-        }));
+          rotation: 0,
+          opacity: 1,
+          zIndex: 10,
+          text: '{{NAME}}',
+          fontFamily: 'serif',
+          fontSize: 28,
+          fontWeight: 'bold',
+          fontStyle: 'normal',
+          color: '#0e1838',
+          align: 'center',
+        };
+        setTemplateElements([defaultNameEl]);
+        setSelectedElementId('el_name_slot');
 
         setStep('preview_template');
       } else {
@@ -224,13 +364,28 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
               paperSizeName: isLandscape ? 'A4 Landscape (297 × 210 mm)' : 'A4 Portrait (210 × 297 mm)',
             });
 
-            setNamePosition((prev) => ({
-              ...prev,
+            const defaultNameEl: CanvasElement = {
+              id: 'el_name_slot',
+              type: 'dynamic_field',
+              name: 'Recipient Name',
+              dynamicFieldKey: 'NAME',
               x: Math.round(w / 2 - 200),
               y: Math.round(h * 0.35),
               width: 400,
               height: 60,
-            }));
+              rotation: 0,
+              opacity: 1,
+              zIndex: 10,
+              text: '{{NAME}}',
+              fontFamily: 'serif',
+              fontSize: 28,
+              fontWeight: 'bold',
+              fontStyle: 'normal',
+              color: '#0e1838',
+              align: 'center',
+            };
+            setTemplateElements([defaultNameEl]);
+            setSelectedElementId('el_name_slot');
 
             setStep('preview_template');
           };
@@ -296,26 +451,24 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     const orientation = templateDetails?.orientation || 'portrait';
     const activeBgUrl = templateDataUrl || SEVENTH_SENSE_MASTER_ORIGINAL_BACKGROUND_SVG;
 
-    const nameElement: CanvasElement = {
-      id: 'el_name_slot',
-      type: 'dynamic_field',
-      name: 'Recipient Name',
-      dynamicFieldKey: 'NAME',
-      x: namePosition.x,
-      y: namePosition.y,
-      width: namePosition.width,
-      height: namePosition.height,
-      rotation: 0,
-      opacity: 1,
-      zIndex: 10,
-      text: '{{NAME}}',
-      fontFamily: namePosition.fontFamily,
-      fontSize: namePosition.fontSize,
-      fontWeight: namePosition.fontWeight,
-      fontStyle: namePosition.fontStyle,
-      color: namePosition.color,
-      align: namePosition.align,
-    };
+    const dynamicFieldsMap = new Map<string, DynamicFieldDef>();
+    templateElements.forEach((el) => {
+      if (el.text) {
+        const matches = el.text.match(/\{\{([^}]+)\}\}/g);
+        if (matches) {
+          matches.forEach((m) => {
+            const key = m.replace(/[\{\}]/g, '').trim();
+            if (key && !dynamicFieldsMap.has(key)) {
+              dynamicFieldsMap.set(key, {
+                key,
+                label: key,
+                defaultValue: key === 'NAME' ? 'Sathya Sai JS' : key,
+              });
+            }
+          });
+        }
+      }
+    });
 
     return {
       id: `tpl_master_${currentProject.id}`,
@@ -332,8 +485,8 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
       },
       backgroundColor: '#ffffff',
       backgroundUrl: activeBgUrl,
-      elements: [nameElement],
-      dynamicFields: [{ key: 'NAME', label: 'Recipient Name', defaultValue: 'Sathya Sai JS' }],
+      elements: templateElements,
+      dynamicFields: Array.from(dynamicFieldsMap.values()),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -345,7 +498,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
       const activeTpl = buildActiveTemplateObject();
       const firstRow = rows[0];
       const firstName = firstRow[selectedNameCol] || 'Sathya Sai JS';
-      const sampleData = { NAME: firstName };
+      const sampleData = { ...firstRow, NAME: firstName };
 
       renderCertificateToCanvas(
         firstPreviewCanvasRef.current,
@@ -355,7 +508,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
         branding
       );
     }
-  }, [step, namePosition, rows, selectedNameCol]);
+  }, [step, templateElements, rows, selectedNameCol]);
 
   // 4. Start Sequential Ordered Bulk Generation
   const handleStartGeneration = async () => {
@@ -653,134 +806,381 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
         </div>
       )}
 
-      {/* STEP 3: SET RECIPIENT NAME POSITION */}
+      {/* STEP 3: SET RECIPIENT NAME & ADD CONTENT POSITION */}
       {step === 'position_name' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-4 gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-slate-100 pb-4 gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Set Name Position</h2>
-              <p className="text-xs text-slate-500">
-                Position and format the <span className="font-mono font-bold text-blue-600">{'{{NAME}}'}</span> personalization slot over the recipient name line
+              <div className="flex items-center space-x-2">
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Set Name & Certificate Content</h2>
+                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 font-extrabold text-[11px] rounded-full">
+                  {templateElements.length} Content {templateElements.length === 1 ? 'Layer' : 'Layers'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Add recipient names (<span className="font-mono font-bold text-blue-600">{'{{NAME}}'}</span>) and custom content fields (Record Title, Date, Signatures, Static Text) over the master template.
               </p>
             </div>
-            <button
-              onClick={() => {
-                if (rows.length > 0) setStep('view_names');
-                else setStep('upload_names');
-              }}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0"
-            >
-              <span>Continue to Upload Name List</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
 
-          {/* Positioning Tools Bar */}
-          <div className="bg-slate-900 text-white p-4 rounded-xl flex flex-wrap items-center gap-4 text-xs">
-            <div className="flex items-center space-x-2">
-              <Type className="w-4 h-4 text-blue-400" />
-              <span className="font-semibold text-slate-300">Font Family:</span>
-              <select
-                value={namePosition.fontFamily}
-                onChange={(e) => setNamePosition({ ...namePosition, fontFamily: e.target.value })}
-                className="bg-slate-800 text-white rounded px-2 py-1 text-xs border border-slate-700"
-              >
-                <option value="serif">Georgia / Serif</option>
-                <option value="sans-serif">Arial / Sans-Serif</option>
-                <option value="Playfair Display">Playfair Display</option>
-                <option value="Courier New">Courier / Monospace</option>
-              </select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <span className="font-semibold text-slate-300">Size:</span>
-              <input
-                type="number"
-                value={namePosition.fontSize}
-                onChange={(e) => setNamePosition({ ...namePosition, fontSize: Number(e.target.value) })}
-                className="bg-slate-800 text-white rounded px-2 py-1 text-xs w-16 border border-slate-700 text-center"
-              />
-              <span>px</span>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Palette className="w-4 h-4 text-amber-400" />
-              <span className="font-semibold text-slate-300">Color:</span>
-              <input
-                type="color"
-                value={namePosition.color}
-                onChange={(e) => setNamePosition({ ...namePosition, color: e.target.value })}
-                className="w-7 h-7 rounded border-none cursor-pointer bg-transparent"
-              />
-            </div>
-
-            <div className="flex items-center space-x-1 border-l border-slate-700 pl-3">
+            {/* Content Add Actions & Continue Button */}
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => setNamePosition({ ...namePosition, align: 'left' })}
-                className={`p-1.5 rounded ${namePosition.align === 'left' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                onClick={handleAddNameElement}
+                className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl border border-blue-200 transition-colors flex items-center space-x-1.5"
               >
-                <AlignLeft className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5 text-blue-600" />
+                <span>+ Recipient Name</span>
               </button>
-              <button
-                onClick={() => setNamePosition({ ...namePosition, align: 'center' })}
-                className={`p-1.5 rounded ${namePosition.align === 'center' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                <AlignCenter className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setNamePosition({ ...namePosition, align: 'right' })}
-                className={`p-1.5 rounded ${namePosition.align === 'right' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
-              >
-                <AlignRight className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="flex items-center space-x-2 border-l border-slate-700 pl-3">
-              <span className="font-semibold text-slate-300">Vertical Offset (Y):</span>
-              <input
-                type="range"
-                min={50}
-                max={templateDetails?.height || 1000}
-                value={namePosition.y}
-                onChange={(e) => setNamePosition({ ...namePosition, y: Number(e.target.value) })}
-                className="w-32 accent-blue-500"
-              />
-              <span className="font-mono text-[11px] text-blue-300">{namePosition.y}px</span>
-            </div>
-          </div>
+              <button
+                onClick={() => handleAddStaticText('For successfully setting the Seventh Sense World Record')}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 transition-colors flex items-center space-x-1.5"
+              >
+                <Plus className="w-3.5 h-3.5 text-slate-600" />
+                <span>+ Static Text</span>
+              </button>
 
-          {/* Interactive Canvas Overlay */}
-          <div className="relative bg-slate-100 border border-slate-300 rounded-2xl p-4 flex justify-center items-center overflow-auto max-h-[520px]">
-            {templateDataUrl && (
-              <div className="relative inline-block border border-slate-400 rounded shadow-lg overflow-hidden">
-                <img
-                  src={templateDataUrl}
-                  alt="Template"
-                  className="max-h-[480px] w-auto block select-none pointer-events-none"
-                />
-                {/* Visual Position Box Overlay */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: `${(namePosition.y / (templateDetails?.height || 1123)) * 100}%`,
-                    left: '10%',
-                    right: '10%',
-                    textAlign: namePosition.align,
-                    fontFamily: namePosition.fontFamily,
-                    fontSize: `${Math.max(14, namePosition.fontSize * 0.45)}px`,
-                    fontWeight: namePosition.fontWeight,
-                    color: namePosition.color,
-                    padding: '4px 8px',
-                    border: '2px dashed #2563eb',
-                    backgroundColor: 'rgba(219, 234, 254, 0.4)',
-                    cursor: 'move',
+              {/* Dynamic Field Selector Dropdown */}
+              <div className="relative inline-block">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      handleAddDynamicField(e.target.value);
+                      e.target.value = '';
+                    }
                   }}
-                  className="rounded flex items-center justify-center font-bold shadow-xs select-none"
+                  defaultValue=""
+                  className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs rounded-xl border border-amber-300 transition-colors cursor-pointer"
                 >
-                  <span className="drop-shadow-xs">Sathya Sai JS</span>
+                  <option value="" disabled>+ Dynamic Field...</option>
+                  {columns.length > 0 ? (
+                    columns.map((col) => (
+                      <option key={col} value={col}>
+                        Excel Column: {col}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="RECORD_TITLE">Record Title</option>
+                      <option value="CATEGORY">Category</option>
+                      <option value="DATE">Date</option>
+                      <option value="CERTIFICATE_ID">Certificate No</option>
+                      <option value="LOCATION">Location</option>
+                      <option value="ORGANIZATION">Organization</option>
+                      <option value="GURU_NAME">Mentor / Signatory</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (rows.length > 0) setStep('view_names');
+                  else setStep('upload_names');
+                }}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 ml-auto"
+              >
+                <span>Continue to Upload Name List</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Layers List & Selected Element Properties Inspector */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* Layers Selection Tabs */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Certificate Layers ({templateElements.length})</span>
+                  </h3>
+                  <span className="text-[10px] text-slate-500">Click layer to select</span>
+                </div>
+
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {templateElements.map((el, idx) => {
+                    const isSel = el.id === selectedElementId;
+                    return (
+                      <div
+                        key={el.id}
+                        onClick={() => setSelectedElementId(el.id)}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                          isSel
+                            ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-sm'
+                            : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2 truncate pr-2">
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center font-extrabold text-[10px] ${
+                            isSel ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <span className="truncate font-medium">
+                            {el.text || el.name || 'Text Field'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center space-x-1 shrink-0">
+                          <button
+                            title="Duplicate Layer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDuplicateElement(el.id);
+                            }}
+                            className={`p-1 rounded hover:bg-black/10 transition-colors ${
+                              isSel ? 'text-white' : 'text-slate-400 hover:text-slate-700'
+                            }`}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            title="Delete Layer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteElement(el.id);
+                            }}
+                            className={`p-1 rounded hover:bg-red-500/20 transition-colors ${
+                              isSel ? 'text-white' : 'text-red-500 hover:text-red-700'
+                            }`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            )}
+
+              {/* Selected Element Property Inspector */}
+              {selectedElement && (
+                <div className="bg-slate-900 text-white rounded-2xl p-5 space-y-4 shadow-md text-xs">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="flex items-center space-x-2">
+                      <Edit2 className="w-4 h-4 text-blue-400" />
+                      <span className="font-extrabold text-slate-200">Layer Inspector</span>
+                    </div>
+                    <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 font-mono text-[10px] rounded uppercase">
+                      {selectedElement.type === 'dynamic_field' ? 'Dynamic Slot' : 'Static Text'}
+                    </span>
+                  </div>
+
+                  {/* Text / Dynamic Template Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                      <span>Text Content / Expression:</span>
+                      <span className="text-[10px] text-slate-400 font-mono">Use {'{{NAME}}'} for variables</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedElement.text || ''}
+                      onChange={(e) => updateSelectedElement({ text: e.target.value })}
+                      placeholder="e.g. {{NAME}} or Record Holder"
+                      className="w-full bg-slate-800 text-white rounded-xl px-3 py-2 text-xs border border-slate-700 focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+
+                  {/* Font Family & Size */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-slate-300">Font Family:</label>
+                      <select
+                        value={selectedElement.fontFamily || 'serif'}
+                        onChange={(e) => updateSelectedElement({ fontFamily: e.target.value })}
+                        className="w-full bg-slate-800 text-white rounded-xl px-2.5 py-2 text-xs border border-slate-700 focus:outline-none"
+                      >
+                        <option value="serif">Georgia / Serif</option>
+                        <option value="sans-serif">Arial / Sans-Serif</option>
+                        <option value="Playfair Display">Playfair Display</option>
+                        <option value="Courier New">Courier / Monospace</option>
+                        <option value="Cinzel">Cinzel Classic</option>
+                        <option value="Great Vibes">Great Vibes / Cursive</option>
+                        <option value="Inter">Inter Clean</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-slate-300">Font Size (px):</label>
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          value={selectedElement.fontSize || 24}
+                          onChange={(e) => updateSelectedElement({ fontSize: Number(e.target.value) })}
+                          className="w-full bg-slate-800 text-white rounded-xl px-2.5 py-2 text-xs border border-slate-700 text-center font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Color, Align, Weight */}
+                  <div className="grid grid-cols-3 gap-3 items-center pt-1">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400">Color:</label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="color"
+                          value={selectedElement.color || '#0e1838'}
+                          onChange={(e) => updateSelectedElement({ color: e.target.value })}
+                          className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none"
+                        />
+                        <span className="font-mono text-[10px] text-slate-300 uppercase">{selectedElement.color || '#0e1838'}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400">Alignment:</label>
+                      <div className="flex items-center space-x-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedElement({ align: 'left' })}
+                          className={`p-1 rounded ${selectedElement.align === 'left' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          <AlignLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedElement({ align: 'center' })}
+                          className={`p-1 rounded ${selectedElement.align === 'center' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          <AlignCenter className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedElement({ align: 'right' })}
+                          className={`p-1 rounded ${selectedElement.align === 'right' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          <AlignRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400">Style:</label>
+                      <div className="flex items-center space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedElement({ fontWeight: selectedElement.fontWeight === 'bold' ? 'normal' : 'bold' })}
+                          className={`px-2 py-1 rounded text-xs font-bold border ${
+                            selectedElement.fontWeight === 'bold' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-slate-400 border-slate-700'
+                          }`}
+                        >
+                          B
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedElement({ fontStyle: selectedElement.fontStyle === 'italic' ? 'normal' : 'italic' })}
+                          className={`px-2 py-1 rounded text-xs italic border ${
+                            selectedElement.fontStyle === 'italic' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-slate-400 border-slate-700'
+                          }`}
+                        >
+                          I
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vertical Position Slider & Quick Actions */}
+                  <div className="space-y-2 pt-2 border-t border-slate-800">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
+                      <span>Vertical Y Position:</span>
+                      <span className="font-mono text-blue-300">{selectedElement.y} px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={templateDetails?.height || 1123}
+                      value={selectedElement.y}
+                      onChange={(e) => updateSelectedElement({ y: Number(e.target.value) })}
+                      className="w-full accent-blue-500 cursor-pointer"
+                    />
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={handleCenterHorizontally}
+                        className="px-3 py-1.5 bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white font-bold text-[11px] rounded-lg transition-colors border border-blue-500/30"
+                      >
+                        Center Horizontally
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteElement(selectedElement.id)}
+                        className="px-3 py-1.5 bg-red-500/20 hover:bg-red-600 text-red-300 hover:text-white font-bold text-[11px] rounded-lg transition-colors border border-red-500/30 flex items-center space-x-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Delete Layer</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Interactive Master Template Canvas Overlay */}
+            <div className="lg:col-span-7 bg-slate-100 border border-slate-300 rounded-2xl p-4 flex justify-center items-center overflow-auto max-h-[620px] shadow-inner relative">
+              {templateDataUrl && (
+                <div className="relative inline-block border border-slate-400 rounded-xl shadow-xl overflow-hidden bg-white">
+                  <img
+                    src={templateDataUrl}
+                    alt="Master Template"
+                    className="max-h-[560px] w-auto block select-none pointer-events-none"
+                  />
+
+                  {/* Overlaid Content Elements */}
+                  {templateElements.map((el, idx) => {
+                    const isSelected = el.id === selectedElementId;
+                    const h = templateDetails?.height || 1123;
+                    const w = templateDetails?.width || 794;
+                    const topPct = (el.y / h) * 100;
+                    const leftPct = (el.x / w) * 100;
+                    const widthPct = (el.width / w) * 100;
+
+                    // Display sample text (e.g. Sathya Sai JS for NAME or raw text)
+                    let displayText = el.text || el.name;
+                    if (displayText.includes('{{NAME}}')) displayText = displayText.replace('{{NAME}}', 'Sathya Sai JS');
+                    if (displayText.includes('{{Record Title}}')) displayText = displayText.replace('{{Record Title}}', 'Fastest Mental Calculation');
+                    if (displayText.includes('{{DATE}}')) displayText = displayText.replace('{{DATE}}', '12 August 2026');
+
+                    return (
+                      <div
+                        key={el.id}
+                        onClick={() => setSelectedElementId(el.id)}
+                        style={{
+                          position: 'absolute',
+                          top: `${topPct}%`,
+                          left: `${leftPct}%`,
+                          width: `${widthPct}%`,
+                          textAlign: el.align || 'center',
+                          fontFamily: el.fontFamily || 'serif',
+                          fontSize: `${Math.max(12, (el.fontSize || 24) * 0.42)}px`,
+                          fontWeight: el.fontWeight || 'normal',
+                          fontStyle: el.fontStyle || 'normal',
+                          color: el.color || '#0e1838',
+                          padding: '2px 4px',
+                          border: isSelected ? '2px dashed #2563eb' : '1px dotted rgba(100, 116, 139, 0.4)',
+                          backgroundColor: isSelected ? 'rgba(219, 234, 254, 0.45)' : 'rgba(255, 255, 255, 0.2)',
+                          cursor: 'pointer',
+                          zIndex: isSelected ? 30 : idx + 1,
+                        }}
+                        className={`rounded select-none transition-all flex items-center justify-center ${
+                          isSelected ? 'shadow-md scale-[1.01]' : 'hover:border-blue-400 hover:bg-white/40'
+                        }`}
+                      >
+                        <span className="drop-shadow-xs truncate max-w-full">{displayText}</span>
+                        {isSelected && (
+                          <span className="absolute -top-3 -right-2 px-1.5 py-0.2 bg-blue-600 text-white font-mono text-[9px] rounded font-bold shadow-xs">
+                            #{idx + 1}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
