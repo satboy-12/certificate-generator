@@ -99,16 +99,16 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
       type: 'dynamic_field',
       name: 'Recipient Name',
       dynamicFieldKey: 'NAME',
-      x: 197,
-      y: 340,
-      width: 400,
-      height: 50,
+      x: 59,
+      y: 460,
+      width: 675,
+      height: 80,
       rotation: 0,
       opacity: 1,
       zIndex: 10,
       text: '{{NAME}}',
-      fontFamily: 'serif',
-      fontSize: 28,
+      fontFamily: 'Bebas Kai',
+      fontSize: 52,
       fontWeight: 'bold',
       fontStyle: 'normal',
       color: '#0e1838',
@@ -116,6 +116,9 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     },
   ]);
   const [selectedElementId, setSelectedElementId] = useState<string>('el_name_slot');
+
+  // Display height measurement for accurate overlay text scaling
+  const [displayedImgHeight, setDisplayedImgHeight] = useState<number>(560);
 
   // Name List State
   const [nameListFile, setNameListFile] = useState<File | null>(null);
@@ -137,21 +140,23 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   const handleAddNameElement = () => {
     const w = templateDetails?.width || 794;
     const h = templateDetails?.height || 1123;
+    const boxWidth = Math.round(w * 0.85);
+    const calculatedFontSize = Math.max(48, Math.round(w * 0.048));
     const newEl: CanvasElement = {
       id: `el_name_${Date.now()}`,
       type: 'dynamic_field',
       name: 'Recipient Name',
       dynamicFieldKey: 'NAME',
-      x: Math.round(w / 2 - 200),
-      y: Math.round(h * 0.35),
-      width: 400,
-      height: 50,
+      x: Math.round((w - boxWidth) / 2),
+      y: Math.round(h * 0.42),
+      width: boxWidth,
+      height: Math.round(h * 0.08),
       rotation: 0,
       opacity: 1,
       zIndex: templateElements.length + 1,
       text: '{{NAME}}',
-      fontFamily: 'serif',
-      fontSize: 28,
+      fontFamily: 'Bebas Kai',
+      fontSize: calculatedFontSize,
       fontWeight: 'bold',
       fontStyle: 'normal',
       color: '#0e1838',
@@ -164,20 +169,22 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   const handleAddStaticText = (initialText = 'Enter custom certificate text here') => {
     const w = templateDetails?.width || 794;
     const h = templateDetails?.height || 1123;
+    const boxWidth = Math.round(w * 0.8);
+    const calculatedFontSize = Math.max(28, Math.round(w * 0.028));
     const newEl: CanvasElement = {
       id: `el_text_${Date.now()}`,
       type: 'text',
       name: 'Custom Text Block',
-      x: Math.round(w / 2 - 250),
-      y: Math.round(h * 0.48),
-      width: 500,
-      height: 45,
+      x: Math.round((w - boxWidth) / 2),
+      y: Math.round(h * 0.52),
+      width: boxWidth,
+      height: Math.round(h * 0.06),
       rotation: 0,
       opacity: 1,
       zIndex: templateElements.length + 1,
       text: initialText,
       fontFamily: 'sans-serif',
-      fontSize: 18,
+      fontSize: calculatedFontSize,
       fontWeight: 'normal',
       fontStyle: 'normal',
       color: '#334155',
@@ -191,21 +198,23 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     const w = templateDetails?.width || 794;
     const h = templateDetails?.height || 1123;
     const keyName = fieldKey.trim();
+    const boxWidth = Math.round(w * 0.8);
+    const calculatedFontSize = Math.max(28, Math.round(w * 0.028));
     const newEl: CanvasElement = {
       id: `el_dynamic_${Date.now()}`,
       type: 'dynamic_field',
       name: fieldLabel || keyName,
       dynamicFieldKey: keyName,
-      x: Math.round(w / 2 - 200),
-      y: Math.round(h * 0.55),
-      width: 400,
-      height: 40,
+      x: Math.round((w - boxWidth) / 2),
+      y: Math.round(h * 0.58),
+      width: boxWidth,
+      height: Math.round(h * 0.06),
       rotation: 0,
       opacity: 1,
       zIndex: templateElements.length + 1,
       text: `{{${keyName}}}`,
       fontFamily: 'serif',
-      fontSize: 20,
+      fontSize: calculatedFontSize,
       fontWeight: 'bold',
       fontStyle: 'normal',
       color: '#0f172a',
@@ -317,21 +326,24 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           paperSizeName: result.paperSizeName,
         });
 
+        const pdfW = result.width || 794;
+        const pdfH = result.height || 1123;
+        const pdfBoxWidth = Math.round(pdfW * 0.85);
         const defaultNameEl: CanvasElement = {
           id: 'el_name_slot',
           type: 'dynamic_field',
           name: 'Recipient Name',
           dynamicFieldKey: 'NAME',
-          x: Math.round(result.width / 2 - 200),
-          y: Math.round(result.height * 0.35),
-          width: 400,
-          height: 60,
+          x: Math.round((pdfW - pdfBoxWidth) / 2),
+          y: Math.round(pdfH * 0.42),
+          width: pdfBoxWidth,
+          height: Math.round(pdfH * 0.08),
           rotation: 0,
           opacity: 1,
           zIndex: 10,
           text: '{{NAME}}',
-          fontFamily: 'serif',
-          fontSize: 28,
+          fontFamily: 'Bebas Kai',
+          fontSize: Math.max(48, Math.round(pdfW * 0.048)),
           fontWeight: 'bold',
           fontStyle: 'normal',
           color: '#0e1838',
@@ -364,21 +376,22 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
               paperSizeName: isLandscape ? 'A4 Landscape (297 × 210 mm)' : 'A4 Portrait (210 × 297 mm)',
             });
 
+            const imgBoxWidth = Math.round(w * 0.85);
             const defaultNameEl: CanvasElement = {
               id: 'el_name_slot',
               type: 'dynamic_field',
               name: 'Recipient Name',
               dynamicFieldKey: 'NAME',
-              x: Math.round(w / 2 - 200),
-              y: Math.round(h * 0.35),
-              width: 400,
-              height: 60,
+              x: Math.round((w - imgBoxWidth) / 2),
+              y: Math.round(h * 0.42),
+              width: imgBoxWidth,
+              height: Math.round(h * 0.08),
               rotation: 0,
               opacity: 1,
               zIndex: 10,
               text: '{{NAME}}',
-              fontFamily: 'serif',
-              fontSize: 28,
+              fontFamily: 'Bebas Kai',
+              fontSize: Math.max(48, Math.round(w * 0.048)),
               fontWeight: 'bold',
               fontStyle: 'normal',
               color: '#0e1838',
@@ -653,17 +666,72 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           </div>
         </div>
 
-        {/* Step Indicators */}
+        {/* Interactive Step Indicators */}
         <div className="hidden md:flex items-center space-x-1.5 text-xs font-medium text-slate-400">
-          <span className={`px-2.5 py-1 rounded-md ${step === 'upload_template' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800'}`}>1. Upload Template</span>
+          <button
+            onClick={() => setStep('upload_template')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              step === 'upload_template' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+            }`}
+          >
+            1. Upload Template
+          </button>
           <span>→</span>
-          <span className={`px-2.5 py-1 rounded-md ${step === 'preview_template' || step === 'position_name' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800'}`}>2. Preview & Position</span>
+          <button
+            disabled={!templateDataUrl}
+            onClick={() => templateDataUrl && setStep('position_name')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              step === 'preview_template' || step === 'position_name'
+                ? 'bg-blue-600 text-white font-bold'
+                : templateDataUrl
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
+            }`}
+          >
+            2. Preview & Position
+          </button>
           <span>→</span>
-          <span className={`px-2.5 py-1 rounded-md ${step === 'upload_names' || step === 'view_names' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800'}`}>3. Name List</span>
+          <button
+            disabled={!templateDataUrl}
+            onClick={() => templateDataUrl && setStep(rows.length > 0 ? 'view_names' : 'upload_names')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              step === 'upload_names' || step === 'view_names'
+                ? 'bg-blue-600 text-white font-bold'
+                : templateDataUrl
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
+            }`}
+          >
+            3. Name List
+          </button>
           <span>→</span>
-          <span className={`px-2.5 py-1 rounded-md ${step === 'preview_first' || step === 'generating' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800'}`}>4. Preview & Generate</span>
+          <button
+            disabled={!templateDataUrl || rows.length === 0}
+            onClick={() => templateDataUrl && rows.length > 0 && setStep('preview_first')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              step === 'preview_first' || step === 'generating'
+                ? 'bg-blue-600 text-white font-bold'
+                : templateDataUrl && rows.length > 0
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
+            }`}
+          >
+            4. Preview & Generate
+          </button>
           <span>→</span>
-          <span className={`px-2.5 py-1 rounded-md ${step === 'view_generated' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800'}`}>5. Download & Print</span>
+          <button
+            disabled={generatedCerts.length === 0}
+            onClick={() => generatedCerts.length > 0 && setStep('view_generated')}
+            className={`px-2.5 py-1 rounded-md transition-colors ${
+              step === 'view_generated'
+                ? 'bg-blue-600 text-white font-bold'
+                : generatedCerts.length > 0
+                ? 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                : 'bg-slate-800/50 text-slate-600 cursor-not-allowed'
+            }`}
+          >
+            5. Download & Print
+          </button>
         </div>
       </div>
 
@@ -873,16 +941,25 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                 </select>
               </div>
 
-              <button
-                onClick={() => {
-                  if (rows.length > 0) setStep('view_names');
-                  else setStep('upload_names');
-                }}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 shrink-0 ml-auto"
-              >
-                <span>Continue to Upload Name List</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <div className="flex items-center space-x-2 shrink-0 ml-auto">
+                <button
+                  onClick={() => setStep('upload_template')}
+                  className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors flex items-center space-x-1.5"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to Template</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (rows.length > 0) setStep('view_names');
+                    else setStep('upload_names');
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2"
+                >
+                  <span>Continue to Upload Name List</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -984,7 +1061,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                   </div>
 
                   {/* Font Family & Size */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-3">
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-300">Font Family:</label>
                       <select
@@ -992,6 +1069,8 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                         onChange={(e) => updateSelectedElement({ fontFamily: e.target.value })}
                         className="w-full bg-slate-800 text-white rounded-xl px-2.5 py-2 text-xs border border-slate-700 focus:outline-none"
                       >
+                        <option value="Bebas Kai">Bebas Kai (Bold Headline)</option>
+                        <option value="Bebas Neue">Bebas Neue</option>
                         <option value="serif">Georgia / Serif</option>
                         <option value="sans-serif">Arial / Sans-Serif</option>
                         <option value="Playfair Display">Playfair Display</option>
@@ -999,18 +1078,55 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                         <option value="Cinzel">Cinzel Classic</option>
                         <option value="Great Vibes">Great Vibes / Cursive</option>
                         <option value="Inter">Inter Clean</option>
+                        <option value="Montserrat">Montserrat</option>
                       </select>
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-slate-300">Font Size (px):</label>
-                      <div className="flex items-center space-x-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-300">Font Size (px):</label>
+                        <span className="text-[10px] text-blue-400 font-mono font-bold">{selectedElement.fontSize || 48} px</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedElement({ fontSize: Math.max(12, (selectedElement.fontSize || 48) - 8) })}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-lg border border-slate-700 transition-colors"
+                          title="Decrease Font Size (-8px)"
+                        >
+                          -
+                        </button>
                         <input
                           type="number"
-                          value={selectedElement.fontSize || 24}
-                          onChange={(e) => updateSelectedElement({ fontSize: Number(e.target.value) })}
-                          className="w-full bg-slate-800 text-white rounded-xl px-2.5 py-2 text-xs border border-slate-700 text-center font-bold"
+                          value={selectedElement.fontSize || 48}
+                          onChange={(e) => updateSelectedElement({ fontSize: Math.max(10, Number(e.target.value)) })}
+                          className="w-full bg-slate-800 text-white rounded-xl px-2.5 py-1.5 text-xs border border-slate-700 text-center font-bold font-mono"
                         />
+                        <button
+                          type="button"
+                          onClick={() => updateSelectedElement({ fontSize: (selectedElement.fontSize || 48) + 8 })}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-lg border border-slate-700 transition-colors"
+                          title="Increase Font Size (+8px)"
+                        >
+                          +
+                        </button>
+                      </div>
+                      {/* Presets Row */}
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {[36, 48, 64, 80, 96, 120, 150].map((sz) => (
+                          <button
+                            key={sz}
+                            type="button"
+                            onClick={() => updateSelectedElement({ fontSize: sz })}
+                            className={`px-2 py-1 text-[10px] font-bold rounded-md border transition-all ${
+                              selectedElement.fontSize === sz
+                                ? 'bg-blue-600 text-white border-blue-500 shadow-xs'
+                                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                            }`}
+                          >
+                            {sz}px
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1120,55 +1236,118 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
             </div>
 
             {/* Right Column: Interactive Master Template Canvas Overlay */}
-            <div className="lg:col-span-7 bg-slate-100 border border-slate-300 rounded-2xl p-4 flex justify-center items-center overflow-auto max-h-[620px] shadow-inner relative">
-              {templateDataUrl && (
-                <div className="relative inline-block border border-slate-400 rounded-xl shadow-xl overflow-hidden bg-white">
-                  <img
-                    src={templateDataUrl}
-                    alt="Master Template"
-                    className="max-h-[560px] w-auto block select-none pointer-events-none"
-                  />
+            <div className="lg:col-span-7 space-y-3">
+              {/* Quick Floating Format Toolbar above canvas */}
+              {selectedElement && (
+                <div className="bg-slate-900 text-white p-3 rounded-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-2 shadow-md">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[11px] font-extrabold text-amber-400 uppercase tracking-wider">
+                      {selectedElement.name || 'Selected Layer'}:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateSelectedElement({ fontSize: Math.max(12, (selectedElement.fontSize || 48) - 10) })}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs border border-slate-700 active:scale-95 transition-all"
+                    >
+                      - Smaller
+                    </button>
+                    <span className="text-xs font-bold font-mono text-blue-300 px-1">
+                      {selectedElement.fontSize || 48}px
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateSelectedElement({ fontSize: (selectedElement.fontSize || 48) + 10 })}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-xs border border-slate-700 active:scale-95 transition-all"
+                    >
+                      + Larger
+                    </button>
+                  </div>
 
-                  {/* Overlaid Content Elements */}
-                  {templateElements.map((el, idx) => {
-                    const isSelected = el.id === selectedElementId;
-                    const h = templateDetails?.height || 1123;
-                    const w = templateDetails?.width || 794;
-                    const topPct = (el.y / h) * 100;
-                    const leftPct = (el.x / w) * 100;
-                    const widthPct = (el.width / w) * 100;
-
-                    // Display sample text (e.g. Sathya Sai JS for NAME or raw text)
-                    let displayText = el.text || el.name;
-                    if (displayText.includes('{{NAME}}')) displayText = displayText.replace('{{NAME}}', 'Sathya Sai JS');
-                    if (displayText.includes('{{Record Title}}')) displayText = displayText.replace('{{Record Title}}', 'Fastest Mental Calculation');
-                    if (displayText.includes('{{DATE}}')) displayText = displayText.replace('{{DATE}}', '12 August 2026');
-
-                    return (
-                      <div
-                        key={el.id}
-                        onClick={() => setSelectedElementId(el.id)}
-                        style={{
-                          position: 'absolute',
-                          top: `${topPct}%`,
-                          left: `${leftPct}%`,
-                          width: `${widthPct}%`,
-                          textAlign: el.align || 'center',
-                          fontFamily: el.fontFamily || 'serif',
-                          fontSize: `${Math.max(12, (el.fontSize || 24) * 0.42)}px`,
-                          fontWeight: el.fontWeight || 'normal',
-                          fontStyle: el.fontStyle || 'normal',
-                          color: el.color || '#0e1838',
-                          padding: '2px 4px',
-                          border: isSelected ? '2px dashed #2563eb' : '1px dotted rgba(100, 116, 139, 0.4)',
-                          backgroundColor: isSelected ? 'rgba(219, 234, 254, 0.45)' : 'rgba(255, 255, 255, 0.2)',
-                          cursor: 'pointer',
-                          zIndex: isSelected ? 30 : idx + 1,
-                        }}
-                        className={`rounded select-none transition-all flex items-center justify-center ${
-                          isSelected ? 'shadow-md scale-[1.01]' : 'hover:border-blue-400 hover:bg-white/40'
+                  <div className="flex items-center space-x-1.5">
+                    {[48, 72, 96, 120, 150].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => updateSelectedElement({ fontSize: s })}
+                        className={`px-2 py-1 text-[10px] font-extrabold rounded-md transition-all ${
+                          selectedElement.fontSize === s
+                            ? 'bg-blue-600 text-white border border-blue-400 shadow-xs'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
                         }`}
                       >
+                        {s}px
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleCenterHorizontally}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition-colors ml-1 shadow-xs"
+                    >
+                      Center Name
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-slate-100 border border-slate-300 rounded-2xl p-4 flex justify-center items-center overflow-auto max-h-[620px] shadow-inner relative">
+                {templateDataUrl && (
+                  <div className="relative inline-block border border-slate-400 rounded-xl shadow-xl overflow-hidden bg-white">
+                    <img
+                      src={templateDataUrl}
+                      alt="Master Template"
+                      onLoad={(e) => {
+                        const target = e.currentTarget;
+                        if (target && target.clientHeight > 0) {
+                          setDisplayedImgHeight(target.clientHeight);
+                        }
+                      }}
+                      className="max-h-[560px] w-auto block select-none pointer-events-none"
+                    />
+
+                    {/* Overlaid Content Elements */}
+                    {templateElements.map((el, idx) => {
+                      const isSelected = el.id === selectedElementId;
+                      const h = templateDetails?.height || 1123;
+                      const w = templateDetails?.width || 794;
+                      const topPct = (el.y / h) * 100;
+                      const leftPct = (el.x / w) * 100;
+                      const widthPct = (el.width / w) * 100;
+
+                      // Display sample text (e.g. Sathya Sai JS for NAME or raw text)
+                      let displayText = el.text || el.name;
+                      if (displayText.includes('{{NAME}}')) displayText = displayText.replace('{{NAME}}', 'Sathya Sai JS');
+                      if (displayText.includes('{{Record Title}}')) displayText = displayText.replace('{{Record Title}}', 'Fastest Mental Calculation');
+                      if (displayText.includes('{{DATE}}')) displayText = displayText.replace('{{DATE}}', '12 August 2026');
+
+                      // Accurate font size scaling based on displayed height
+                      const scale = (displayedImgHeight || 560) / h;
+                      const scaledFontSize = Math.max(10, Math.round((el.fontSize || 48) * scale));
+
+                      return (
+                        <div
+                          key={el.id}
+                          onClick={() => setSelectedElementId(el.id)}
+                          style={{
+                            position: 'absolute',
+                            top: `${topPct}%`,
+                            left: `${leftPct}%`,
+                            width: `${widthPct}%`,
+                            textAlign: el.align || 'center',
+                            fontFamily: el.fontFamily || 'serif',
+                            fontSize: `${scaledFontSize}px`,
+                            fontWeight: el.fontWeight || 'normal',
+                            fontStyle: el.fontStyle || 'normal',
+                            color: el.color || '#0e1838',
+                            padding: '2px 4px',
+                            border: isSelected ? '2px dashed #2563eb' : '1px dotted rgba(100, 116, 139, 0.4)',
+                            backgroundColor: isSelected ? 'rgba(219, 234, 254, 0.45)' : 'rgba(255, 255, 255, 0.2)',
+                            cursor: 'pointer',
+                            zIndex: isSelected ? 30 : idx + 1,
+                          }}
+                          className={`rounded select-none transition-all flex items-center justify-center ${
+                            isSelected ? 'shadow-md scale-[1.01]' : 'hover:border-blue-400 hover:bg-white/40'
+                          }`}
+                        >
                         <span className="drop-shadow-xs truncate max-w-full">{displayText}</span>
                         {isSelected && (
                           <span className="absolute -top-3 -right-2 px-1.5 py-0.2 bg-blue-600 text-white font-mono text-[9px] rounded font-bold shadow-xs">
@@ -1183,15 +1362,29 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* STEP 4: UPLOAD RECIPIENT NAME LIST */}
       {step === 'upload_names' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Upload Recipient Name List</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Upload an Excel (.xlsx, .xls) or CSV file containing recipient names
+              </p>
+            </div>
+            <button
+              onClick={() => setStep('position_name')}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors flex items-center space-x-1.5"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Position & Layout</span>
+            </button>
+          </div>
+
           <div className="text-center max-w-xl mx-auto space-y-2">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              Upload Recipient Name List
-            </h2>
             <p className="text-xs text-slate-600 leading-relaxed">
               Upload an Excel (.xlsx, .xls) or CSV file containing recipient names. The exact row order from your file will be strictly preserved during certificate generation.
             </p>
@@ -1243,7 +1436,14 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
               </p>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setStep('position_name')}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors flex items-center space-x-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Position & Layout</span>
+              </button>
               <button
                 onClick={() => setStep('upload_names')}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors"
@@ -1353,19 +1553,27 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
       {/* STEP 6: PREVIEW FIRST CERTIFICATE */}
       {step === 'preview_first' && (
         <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-4">
             <div>
               <h2 className="text-xl font-bold text-slate-900">Preview First Certificate</h2>
               <p className="text-xs text-slate-500">
                 Verify recipient name placement on Excel Row 1 (<span className="font-bold text-blue-700">{rows[0]?.[selectedNameCol] || 'Sathya Sai JS'}</span>) before bulk generating
               </p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setStep('position_name')}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors flex items-center space-x-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Edit Layout</span>
+              </button>
               <button
                 onClick={() => setStep('view_names')}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors"
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors flex items-center space-x-1.5"
               >
-                Back
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Edit Recipient List</span>
               </button>
               <button
                 onClick={handleStartGeneration}
@@ -1441,6 +1649,20 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
 
             {/* Bulk Download & Print Action Buttons */}
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setStep('position_name')}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors flex items-center space-x-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Layout</span>
+              </button>
+              <button
+                onClick={() => setStep('view_names')}
+                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-colors flex items-center space-x-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Recipient List</span>
+              </button>
               <button
                 onClick={() => {
                   const activeTpl = buildActiveTemplateObject();

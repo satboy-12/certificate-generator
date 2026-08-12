@@ -118,10 +118,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 onChange={(e) => onUpdateElement({ fontFamily: e.target.value })}
                 className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-500"
               >
+                <option value="Bebas Kai">Bebas Kai (Bold Display)</option>
+                <option value="Bebas Neue">Bebas Neue</option>
                 <option value="serif">Classic Serif (Georgia, Times)</option>
                 <option value="sans-serif">Modern Sans-Serif (Arial, Helvetica)</option>
+                <option value="Playfair Display">Playfair Display</option>
+                <option value="Cinzel">Cinzel Classic</option>
+                <option value="Great Vibes">Great Vibes Calligraphy</option>
+                <option value="Inter">Inter Clean</option>
                 <option value="monospace">Monospace / Code</option>
-                <option value="cursive">Calligraphy / Script</option>
               </select>
             </div>
 

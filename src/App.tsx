@@ -51,12 +51,10 @@ import { SettingsPage } from './components/SettingsPage';
 import { LoginModal } from './components/LoginModal';
 import { TemplateUploadWorkflow } from './components/TemplateUploadWorkflow';
 
-export default function App() {
-  // Initialize sample data if needed
-  useEffect(() => {
-    initializeStorageIfNeeded();
-  }, []);
+// Initialize storage synchronously before state setup
+initializeStorageIfNeeded();
 
+export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile>(getCurrentUser());
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<NavTab>('upload_flow');
@@ -78,11 +76,21 @@ export default function App() {
   });
 
   // State collections
-  const [projects, setProjects] = useState<Project[]>(getProjects());
+  const [projects, setProjects] = useState<Project[]>(() => getProjects());
   const [currentProject, setCurrentProject] = useState<Project | null>(() => {
     const list = getProjects();
     return list[0] || null;
   });
+
+  // Ensure projects and currentProject are synchronized on mount
+  useEffect(() => {
+    initializeStorageIfNeeded();
+    const allProj = getProjects();
+    setProjects(allProj);
+    if (allProj.length > 0 && !currentProject) {
+      setCurrentProject(allProj[0]);
+    }
+  }, []);
 
   const [templates, setTemplates] = useState<CertificateTemplate[]>(getTemplates());
   const [branding, setBranding] = useState<BrandingSettings>(getBrandingSettings());
@@ -277,12 +285,25 @@ export default function App() {
 
   const projTemplates = currentProject ? getTemplatesForProject(currentProject.id) : [];
 
+  const effectiveProject: Project = currentProject || projects[0] || {
+    id: 'proj_default_master',
+    name: 'Vande Bharatam 2026',
+    eventName: 'Seventh Sense World Records 2026',
+    organization: 'BSROCKS × SeventhSense',
+    certificateType: 'achievement',
+    description: 'Default Seventh Sense Master Project',
+    ownerId: currentUser?.id || 'usr_admin_01',
+    templateIds: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans antialiased">
       {/* Top Header */}
       <Header
-        currentProject={currentProject}
-        projects={projects}
+        currentProject={currentProject || effectiveProject}
+        projects={projects.length > 0 ? projects : [effectiveProject]}
         user={currentUser}
         branding={branding}
         onSelectProject={handleSelectProject}
@@ -302,9 +323,9 @@ export default function App() {
         {/* Main Content Area */}
         <main className="flex-1 bg-slate-100 text-slate-900 overflow-y-auto">
           {/* 0. PRIMARY TEMPLATE UPLOAD & ORDERED BULK GENERATOR WORKFLOW */}
-          {activeTab === 'upload_flow' && currentProject && (
+          {activeTab === 'upload_flow' && (
             <TemplateUploadWorkflow
-              currentProject={currentProject}
+              currentProject={effectiveProject}
               branding={branding}
               onSaveTemplate={handleSaveTemplate}
               onSaveDataset={(ds) => {

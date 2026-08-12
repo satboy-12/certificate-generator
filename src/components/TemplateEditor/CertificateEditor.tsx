@@ -136,23 +136,25 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
   };
 
   const handleAddDynamicField = (field: DynamicFieldDef) => {
+    const w = template.size.pxWidth;
+    const boxW = Math.round(w * 0.85);
     const newEl: CanvasElement = {
       id: `field_${field.key}_${Date.now()}`,
       type: 'dynamic_field',
       name: field.label,
       dynamicFieldKey: field.key,
-      x: template.size.pxWidth / 2 - 200,
+      x: Math.round((w - boxW) / 2),
       y: template.size.pxHeight / 2 - 25,
-      width: 400,
-      height: 50,
+      width: boxW,
+      height: 60,
       rotation: 0,
       opacity: 1,
       zIndex: elements.length + 1,
       text: `{{${field.key}}}`,
-      fontFamily: 'serif',
-      fontSize: 28,
+      fontFamily: 'Bebas Kai',
+      fontSize: Math.max(48, Math.round(w * 0.048)),
       fontWeight: 'bold',
-      color: '#1e40af',
+      color: '#0e1838',
       align: 'center',
     };
     handleAddElement(newEl);
