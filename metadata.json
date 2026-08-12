@@ -1,0 +1,6 @@
+{
+  "name": "BSROCKS x SeventhSense Certificate System",
+  "description": "Professional certificate design, bulk generation, template editing, verification, and printing system for BSROCKS × SeventhSense.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
