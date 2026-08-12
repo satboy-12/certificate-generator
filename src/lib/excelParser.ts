@@ -9,6 +9,94 @@ export interface ParsedExcelResult {
   totalRows: number;
 }
 
+export function smartDetectNameColumn(columns: string[], rows: DataRow[] = []): string {
+  if (!columns || columns.length === 0) return 'Name';
+
+  const normalizedCandidates = [
+    'name',
+    'names',
+    'recipient name',
+    'recipient_name',
+    'recipientname',
+    'recipient',
+    'participant name',
+    'participant_name',
+    'participantname',
+    'participant',
+    'student name',
+    'student_name',
+    'studentname',
+    'student',
+    'full name',
+    'fullname',
+    'full_name',
+    'candidate name',
+    'candidate_name',
+    'candidatename',
+    'candidate',
+    'member name',
+    'member_name',
+    'person name',
+    'person',
+    'first name',
+    'firstname',
+    'last name',
+    'lastname',
+    'display name',
+    'winner name',
+    'holder name',
+  ];
+
+  // 1. Exact candidate match (normalized)
+  for (const candidate of normalizedCandidates) {
+    const found = columns.find(
+      (col) => col.toLowerCase().trim().replace(/[^a-z0-9]/g, '') === candidate.replace(/[^a-z0-9]/g, '')
+    );
+    if (found) return found;
+  }
+
+  // 2. Partial word match on column names
+  const partialKeywords = ['name', 'recipient', 'participant', 'student', 'candidate', 'person', 'member'];
+  for (const kw of partialKeywords) {
+    const found = columns.find((col) => col.toLowerCase().includes(kw));
+    if (found) return found;
+  }
+
+  // 3. Row value content inspection heuristic if header isn't obvious
+  if (rows.length > 0) {
+    let bestCol = columns[0];
+    let maxNameScore = -1;
+
+    for (const col of columns) {
+      let nameLikeCount = 0;
+      const samples = rows.slice(0, 15);
+      for (const row of samples) {
+        const val = String(row[col] || '').trim();
+        // Skip purely numeric IDs or numbers like 1, 2, 10023 or dates
+        if (val && !/^\d+$/.test(val) && !/^\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}$/.test(val)) {
+          // Names usually contain alphabets, spaces, dots
+          if (/^[A-Za-z\s\.\-']{2,60}$/.test(val)) {
+            nameLikeCount++;
+          }
+        }
+      }
+
+      if (nameLikeCount > maxNameScore) {
+        maxNameScore = nameLikeCount;
+        bestCol = col;
+      }
+    }
+
+    if (maxNameScore > 0) {
+      return bestCol;
+    }
+  }
+
+  // 4. Default fallback: First non-numeric header
+  const nonNumCol = columns.find((col) => !/^(id|sno|s\.no|#|sl|slno|index)$/i.test(col.trim()));
+  return nonNumCol || columns[0] || 'Name';
+}
+
 export function parseExcelFile(file: File): Promise<ParsedExcelResult> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -40,20 +128,30 @@ export function parseExcelFile(file: File): Promise<ParsedExcelResult> {
 
         const columns = Array.from(columnsSet);
 
-        // Convert to DataRow format with unique _rowId
-        const rows: DataRow[] = rawJson.map((row, idx) => {
+        // Convert to DataRow format with unique _rowId, filter out completely empty rows
+        const validRows: DataRow[] = [];
+        rawJson.forEach((row, idx) => {
           const rowObj: DataRow = { _rowId: `row_${Date.now()}_${idx}` };
+          let hasValue = false;
           columns.forEach((col) => {
-            rowObj[col] = String(row[col] ?? '').trim();
+            const val = String(row[col] ?? '').trim();
+            rowObj[col] = val;
+            if (val) hasValue = true;
           });
-          return rowObj;
+          if (hasValue) {
+            validRows.push(rowObj);
+          }
         });
+
+        if (validRows.length === 0) {
+          throw new Error('The uploaded file contains no valid data rows.');
+        }
 
         resolve({
           fileName: file.name,
           columns,
-          rows,
-          totalRows: rows.length,
+          rows: validRows,
+          totalRows: validRows.length,
         });
       } catch (err: any) {
         reject(new Error(err.message || 'Failed to read spreadsheet file. Please ensure it is a valid .xlsx or .csv.'));

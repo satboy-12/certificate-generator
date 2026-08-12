@@ -14,7 +14,7 @@ import {
   User,
 } from 'lucide-react';
 import { Dataset, DataRow, DynamicFieldDef } from '../types';
-import { parseExcelFile, downloadSampleExcelTemplate, autoDetectColumnMapping } from '../lib/excelParser';
+import { parseExcelFile, downloadSampleExcelTemplate, autoDetectColumnMapping, smartDetectNameColumn } from '../lib/excelParser';
 
 interface ImportDataModalProps {
   projectId: string;
@@ -84,8 +84,8 @@ export const ImportDataModal: React.FC<ImportDataModalProps> = ({
       setColumns(result.columns);
       setRows(result.rows);
 
-      // Auto detect Name column
-      const detectedNameCol = detectNameColumn(result.columns);
+      // Auto detect Name column using smart detection
+      const detectedNameCol = smartDetectNameColumn(result.columns, result.rows);
       setSelectedNameColumn(detectedNameCol);
 
       // Auto map remaining fields without forcing user interaction

@@ -37,7 +37,7 @@ import {
   DynamicFieldDef,
   BrandingSettings,
 } from '../types';
-import { parseExcelFile } from '../lib/excelParser';
+import { parseExcelFile, smartDetectNameColumn } from '../lib/excelParser';
 import { convertPdfToImageDataUrl } from '../lib/pdfHelper';
 import { SEVENTH_SENSE_MASTER_ORIGINAL_BACKGROUND_SVG } from '../constants/defaultTemplates';
 import {
@@ -279,25 +279,9 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   const firstPreviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const singlePreviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Common Name column candidates
-  const detectNameColumn = (cols: string[]): string => {
-    const candidates = [
-      'name',
-      'recipient name',
-      'participant name',
-      'student name',
-      'full name',
-      'recipient',
-      'participant',
-      'full_name',
-    ];
-    for (const cand of candidates) {
-      const found = cols.find((c) => c.toLowerCase().trim() === cand);
-      if (found) return found;
-    }
-    const partial = cols.find((c) => c.toLowerCase().includes('name'));
-    if (partial) return partial;
-    return cols[0] || 'Name';
+  // Smart Name column detection
+  const detectNameColumn = (cols: string[], sampleRows?: DataRow[]): string => {
+    return smartDetectNameColumn(cols, sampleRows);
   };
 
   const [isProcessingTemplate, setIsProcessingTemplate] = useState(false);
@@ -448,7 +432,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
       setColumns(result.columns);
       setRows(result.rows); // Order strictly preserved
 
-      const detected = detectNameColumn(result.columns);
+      const detected = detectNameColumn(result.columns, result.rows);
       setSelectedNameCol(detected);
 
       setStep('view_names');
@@ -1461,43 +1445,52 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           </div>
 
           {/* Name Column Auto Detection Notification Bar */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="font-semibold text-slate-700">Auto-Detected Name Column:</span>
-              <select
-                value={selectedNameCol}
-                onChange={(e) => setSelectedNameCol(e.target.value)}
-                className="bg-white border border-slate-300 font-bold text-slate-900 rounded px-3 py-1 text-xs shadow-2xs"
-              >
-                {columns.map((col) => (
-                  <option key={col} value={col}>
-                    {col}
-                  </option>
-                ))}
-              </select>
+          <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div>
+                  <span className="font-extrabold text-emerald-900 text-sm">Smart Detected Name Column: </span>
+                  <span className="font-bold text-slate-700">Extracting names from</span>
+                  <select
+                    value={selectedNameCol}
+                    onChange={(e) => setSelectedNameCol(e.target.value)}
+                    className="ml-2 bg-white border border-emerald-400 font-extrabold text-emerald-900 rounded-lg px-3 py-1.5 text-xs shadow-xs focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {columns.map((col) => (
+                      <option key={col} value={col}>
+                        Column: "{col}"
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Table Search & Add Name */}
+              <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search recipient name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs w-48 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={handleAddNameRow}
+                  className="px-3 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-lg hover:bg-emerald-500 transition-colors flex items-center space-x-1 shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Name</span>
+                </button>
+              </div>
             </div>
 
-            {/* Table Search & Add Name */}
-            <div className="flex items-center space-x-3">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search recipient name..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs w-48 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <button
-                onClick={handleAddNameRow}
-                className="px-3 py-1.5 bg-emerald-600 text-white font-bold text-xs rounded-lg hover:bg-emerald-500 transition-colors flex items-center space-x-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Name</span>
-              </button>
-            </div>
+            <p className="text-[11px] text-emerald-800 leading-normal border-t border-emerald-200/60 pt-2 font-medium">
+              ℹ️ <strong className="font-bold">Certificate Print Guarantee:</strong> Each recipient name below will print on an individual certificate. Every certificate maintains 100% identical background template, layout, static text, signatures, and styling.
+            </p>
           </div>
 
           {/* Recipient Table displaying exact Excel Row Order */}
