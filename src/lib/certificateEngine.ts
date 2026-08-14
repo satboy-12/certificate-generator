@@ -422,16 +422,17 @@ export async function renderCertificateToCanvas(
   );
 }
 
-// Convert Canvas to High Quality PDF Blob/Doc
+// Convert Canvas to High Quality PDF Blob/Doc with Maximum Speed
 export async function createPdfFromTemplate(
   template: CertificateTemplate,
   data: Record<string, string>,
   certNumber: string,
   branding: BrandingSettings,
   customElementsOverridden?: CanvasElement[],
-  preloadedStaticCanvas?: HTMLCanvasElement
-): Promise<{ doc: jsPDF; filename: string; dataUrl: string }> {
-  const offscreenCanvas = document.createElement('canvas');
+  preloadedStaticCanvas?: HTMLCanvasElement,
+  reusableCanvas?: HTMLCanvasElement
+): Promise<{ doc: jsPDF; filename: string; dataUrl?: string }> {
+  const offscreenCanvas = reusableCanvas || document.createElement('canvas');
   await renderCertificateToCanvas(
     offscreenCanvas,
     template,
@@ -454,8 +455,8 @@ export async function createPdfFromTemplate(
     compress: true,
   });
 
-  const imgData = offscreenCanvas.toDataURL('image/png');
-  pdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
+  // Direct canvas pass-through for fastest lossless embedding
+  pdf.addImage(offscreenCanvas, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
 
   const safeRecipient = (data['NAME'] || data['Name'] || 'Certificate').replace(/[^a-zA-Z0-9_-]/g, '_');
   const filename = `${certNumber}_${safeRecipient}.pdf`;
@@ -463,11 +464,10 @@ export async function createPdfFromTemplate(
   return {
     doc: pdf,
     filename,
-    dataUrl: imgData,
   };
 }
 
-// Export single certificate as PDF download
+// Export single certificate as PDF download instantly
 export async function downloadCertificatePdf(
   template: CertificateTemplate,
   cert: GeneratedCertificate,
@@ -481,7 +481,8 @@ export async function downloadCertificatePdf(
     cert.customElementsOverridden
   );
 
-  doc.save(filename);
+  const blob = doc.output('blob');
+  saveAs(blob, filename);
 }
 
 // Export multiple selected or all certificates into a single multi-page PDF document (High Speed)
@@ -507,6 +508,8 @@ export async function downloadCombinedPdf(
   // Pre-render static background canvas once
   const staticCanvas = await createStaticLayerCanvas(template, branding);
   const offscreenCanvas = document.createElement('canvas');
+  offscreenCanvas.width = template.size.pxWidth;
+  offscreenCanvas.height = template.size.pxHeight;
 
   for (let i = 0; i < certificates.length; i++) {
     const cert = certificates[i];
@@ -524,18 +527,21 @@ export async function downloadCombinedPdf(
       staticCanvas
     );
 
-    const imgData = offscreenCanvas.toDataURL('image/png');
-    combinedPdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
+    // Direct canvas pass-through avoids expensive base64 encoding overhead
+    combinedPdf.addImage(offscreenCanvas, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
 
-    if (onProgress && (i % 2 === 0 || i === certificates.length - 1)) {
+    if (onProgress && (i % 5 === 0 || i === certificates.length - 1)) {
       onProgress(i + 1, certificates.length);
+      // Yield to browser UI thread periodically
+      await new Promise((r) => setTimeout(r, 0));
     }
   }
 
-  combinedPdf.save(`BSROCKS_SeventhSense_Certificates_Combined_${Date.now()}.pdf`);
+  const blob = combinedPdf.output('blob');
+  saveAs(blob, `BSROCKS_SeventhSense_Certificates_Combined_${Date.now()}.pdf`);
 }
 
-// Export all certificates as individual PDFs bundled inside a single ZIP file (High Speed Concurrency)
+// Export all certificates as individual PDFs bundled inside a single ZIP file (Ultra High Speed Concurrency)
 export async function downloadCertificatesZip(
   template: CertificateTemplate,
   certificates: GeneratedCertificate[],
@@ -547,11 +553,11 @@ export async function downloadCertificatesZip(
   const zip = new JSZip();
   const folder = zip.folder('Certificates');
 
-  // Pre-render static background canvas once
+  // Pre-render static background canvas once for all certificates
   const staticCanvas = await createStaticLayerCanvas(template, branding);
 
-  // Parallel batches of 4-6 certificates for maximum throughput
-  const CONCURRENCY = 6;
+  // Parallel batches of 8-12 certificates with dedicated offscreen canvases
+  const CONCURRENCY = 10;
   let completedCount = 0;
 
   for (let i = 0; i < certificates.length; i += CONCURRENCY) {
@@ -563,30 +569,38 @@ export async function downloadCertificatesZip(
         const safeName = cert.recipientName.replace(/[^a-zA-Z0-9]/g, '-');
         const filename = `${rowNumStr}-${safeName}.pdf`;
 
+        // Dedicated canvas per concurrent task for thread-safe canvas rendering
+        const workerCanvas = document.createElement('canvas');
+        workerCanvas.width = template.size.pxWidth;
+        workerCanvas.height = template.size.pxHeight;
+
         const { doc } = await createPdfFromTemplate(
           template,
           cert.data,
           cert.certificateNumber,
           branding,
           cert.customElementsOverridden,
-          staticCanvas
+          staticCanvas,
+          workerCanvas
         );
 
         const pdfArrayBuffer = doc.output('arraybuffer');
         folder?.file(filename, pdfArrayBuffer);
 
         completedCount++;
-        if (onProgress) {
-          onProgress(completedCount, certificates.length);
-        }
       })
     );
+
+    if (onProgress) {
+      onProgress(Math.min(completedCount, certificates.length), certificates.length);
+      await new Promise((r) => setTimeout(r, 0));
+    }
   }
 
+  // Use fast STORE compression (PDFs are already compressed internally) to make ZIP compilation instantaneous
   const content = await zip.generateAsync({
     type: 'blob',
-    compression: 'DEFLATE',
-    compressionOptions: { level: 4 },
+    compression: 'STORE',
   });
   saveAs(content, `BSROCKS_SeventhSense_Certificates_${Date.now()}.zip`);
 }
