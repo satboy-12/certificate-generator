@@ -41,6 +41,8 @@ export interface CanvasElement {
   dynamicFieldKey?: string; // e.g. 'NAME', 'EVENT_NAME', 'DATE', 'CERTIFICATE_ID'
   fontFamily?: string;
   fontSize?: number;
+  minFontSize?: number; // Minimum font size in px when auto-reducing long recipient names (defaults to 12)
+  autoFit?: boolean; // Dynamic text-resizing flag to fit within plain space width
   fontWeight?: 'normal' | 'bold' | '500' | '600' | '700' | '800' | '900';
   fontStyle?: 'normal' | 'italic';
   textDecoration?: 'none' | 'underline';

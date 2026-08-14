@@ -1,14 +1,30 @@
 @import "tailwindcss";
 
-@layer utilities {
-  @font-face {
-    font-family: 'Bebas Kai';
-    src: local('Bebas Kai'), local('BebasNeue-Regular'), local('Bebas Neue'), url('https://fonts.gstatic.com/s/bebasneue/v14/JTUSjIg612JA6-o14v4gz92y.woff2') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-  }
+@font-face {
+  font-family: 'Bebas Kai';
+  src: local('Bebas Kai'), local('BebasNeue-Regular'), local('Bebas Neue'), url('https://fonts.gstatic.com/s/bebasneue/v14/JTUSjIg612JA6-o14v4gz92y.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bebas Kai';
+  src: local('Bebas Kai Bold'), local('BebasNeue-Bold'), local('Bebas Neue'), url('https://fonts.gstatic.com/s/bebasneue/v14/JTUSjIg612JA6-o14v4gz92y.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bebas Kai';
+  src: local('Bebas Kai'), local('BebasNeue-Regular'), local('Bebas Neue'), url('https://fonts.gstatic.com/s/bebasneue/v14/JTUSjIg612JA6-o14v4gz92y.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
 }
 
 .font-bebas-kai {
   font-family: 'Bebas Kai', 'Bebas Neue', 'Impact', sans-serif;
 }
+

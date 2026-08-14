@@ -39,6 +39,7 @@ import {
 } from '../types';
 import { parseExcelFile, smartDetectNameColumn } from '../lib/excelParser';
 import { convertPdfToImageDataUrl } from '../lib/pdfHelper';
+import { convertOttToImageDataUrl } from '../lib/ottHelper';
 import { SEVENTH_SENSE_MASTER_ORIGINAL_BACKGROUND_SVG } from '../constants/defaultTemplates';
 import {
   renderCertificateToCanvas,
@@ -49,6 +50,23 @@ import {
 } from '../lib/certificateEngine';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
+import {
+  CMYK_PRESETS,
+  hexToCmyk,
+  cmykToHex,
+  formatCmykDisplay,
+  enforceCmykGamut,
+  CmykColor,
+} from '../lib/cmykUtils';
+import {
+  createStyledDynamicField,
+  createStyledTextElement,
+  enforceGlobalStyling,
+  ensureBebasKaiLoaded,
+  calculateAutoFitFontSize,
+  GLOBAL_ENFORCED_FONT,
+  GLOBAL_ENFORCED_DYNAMIC_ALIGN,
+} from '../lib/editorStylingHelper';
 
 interface TemplateUploadWorkflowProps {
   currentProject: Project;
@@ -127,6 +145,11 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   const [selectedNameCol, setSelectedNameCol] = useState<string>('Name');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Ensure Bebas Kai is loaded in browser
+  useEffect(() => {
+    ensureBebasKaiLoaded();
+  }, []);
+
   // Helper functions to manage elements
   const selectedElement = templateElements.find((el) => el.id === selectedElementId) || templateElements[0];
 
@@ -137,31 +160,24 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     );
   };
 
+  // Enforces Bebas Kai font on all text and center alignment on dynamic fields
+  const handleEnforceGlobalStyling = () => {
+    setTemplateElements((prev) => enforceGlobalStyling(prev));
+  };
+
   const handleAddNameElement = () => {
     const w = templateDetails?.width || 794;
     const h = templateDetails?.height || 1123;
-    const boxWidth = Math.round(w * 0.85);
-    const calculatedFontSize = Math.max(48, Math.round(w * 0.048));
-    const newEl: CanvasElement = {
-      id: `el_name_${Date.now()}`,
-      type: 'dynamic_field',
-      name: 'Recipient Name',
-      dynamicFieldKey: 'NAME',
-      x: Math.round((w - boxWidth) / 2),
-      y: Math.round(h * 0.42),
-      width: boxWidth,
-      height: Math.round(h * 0.08),
-      rotation: 0,
-      opacity: 1,
+    const newEl = createStyledDynamicField({
+      fieldKey: 'NAME',
+      fieldLabel: 'Recipient Name',
+      templateWidth: w,
+      templateHeight: h,
       zIndex: templateElements.length + 1,
-      text: '{{NAME}}',
-      fontFamily: 'Bebas Kai',
-      fontSize: calculatedFontSize,
-      fontWeight: 'bold',
-      fontStyle: 'normal',
+      customY: Math.round(h * 0.42),
+      customFontSize: Math.max(48, Math.round(w * 0.048)),
       color: '#0e1838',
-      align: 'center',
-    };
+    });
     setTemplateElements((prev) => [...prev, newEl]);
     setSelectedElementId(newEl.id);
   };
@@ -169,27 +185,17 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   const handleAddStaticText = (initialText = 'Enter custom certificate text here') => {
     const w = templateDetails?.width || 794;
     const h = templateDetails?.height || 1123;
-    const boxWidth = Math.round(w * 0.8);
-    const calculatedFontSize = Math.max(28, Math.round(w * 0.028));
-    const newEl: CanvasElement = {
-      id: `el_text_${Date.now()}`,
-      type: 'text',
-      name: 'Custom Text Block',
-      x: Math.round((w - boxWidth) / 2),
-      y: Math.round(h * 0.52),
-      width: boxWidth,
-      height: Math.round(h * 0.06),
-      rotation: 0,
-      opacity: 1,
-      zIndex: templateElements.length + 1,
+    const newEl = createStyledTextElement({
       text: initialText,
-      fontFamily: 'sans-serif',
-      fontSize: calculatedFontSize,
-      fontWeight: 'normal',
-      fontStyle: 'normal',
+      name: 'Custom Text Block',
+      templateWidth: w,
+      templateHeight: h,
+      zIndex: templateElements.length + 1,
+      customY: Math.round(h * 0.52),
+      customFontSize: Math.max(28, Math.round(w * 0.028)),
       color: '#334155',
       align: 'center',
-    };
+    });
     setTemplateElements((prev) => [...prev, newEl]);
     setSelectedElementId(newEl.id);
   };
@@ -197,29 +203,16 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   const handleAddDynamicField = (fieldKey: string, fieldLabel?: string) => {
     const w = templateDetails?.width || 794;
     const h = templateDetails?.height || 1123;
-    const keyName = fieldKey.trim();
-    const boxWidth = Math.round(w * 0.8);
-    const calculatedFontSize = Math.max(28, Math.round(w * 0.028));
-    const newEl: CanvasElement = {
-      id: `el_dynamic_${Date.now()}`,
-      type: 'dynamic_field',
-      name: fieldLabel || keyName,
-      dynamicFieldKey: keyName,
-      x: Math.round((w - boxWidth) / 2),
-      y: Math.round(h * 0.58),
-      width: boxWidth,
-      height: Math.round(h * 0.06),
-      rotation: 0,
-      opacity: 1,
+    const newEl = createStyledDynamicField({
+      fieldKey,
+      fieldLabel,
+      templateWidth: w,
+      templateHeight: h,
       zIndex: templateElements.length + 1,
-      text: `{{${keyName}}}`,
-      fontFamily: 'serif',
-      fontSize: calculatedFontSize,
-      fontWeight: 'bold',
-      fontStyle: 'normal',
-      color: '#0f172a',
-      align: 'center',
-    };
+      customY: Math.round(h * 0.58),
+      customFontSize: Math.max(32, Math.round(w * 0.032)),
+      color: '#0e1838',
+    });
     setTemplateElements((prev) => [...prev, newEl]);
     setSelectedElementId(newEl.id);
   };
@@ -293,13 +286,51 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     if (!file) return;
 
     const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isOtt =
+      file.name.toLowerCase().endsWith('.ott') ||
+      file.name.toLowerCase().endsWith('.odt') ||
+      file.type === 'application/vnd.oasis.opendocument.text-template' ||
+      file.type === 'application/vnd.oasis.opendocument.text' ||
+      file.type === 'application/x-vnd.oasis.opendocument.text-template';
     const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
 
     setIsProcessingTemplate(true);
     setTemplateFile(file);
 
     try {
-      if (isPdf) {
+      if (isOtt) {
+        const result = await convertOttToImageDataUrl(file);
+        setTemplateDataUrl(result.dataUrl);
+        setTemplateDetails({
+          fileName: file.name,
+          fileType: 'OpenDocument Template (.OTT)',
+          fileSizeStr: `${fileSizeMB} MB`,
+          width: result.width,
+          height: result.height,
+          orientation: result.orientation,
+          paperSizeName: result.paperSizeName,
+        });
+
+        if (result.elements && result.elements.length > 0) {
+          setTemplateElements(result.elements);
+          setSelectedElementId(result.elements[0]?.id || 'el_name_slot');
+        } else {
+          const defaultNameEl = createStyledDynamicField({
+            fieldKey: 'NAME',
+            fieldLabel: 'Recipient Name',
+            templateWidth: result.width,
+            templateHeight: result.height,
+            zIndex: 10,
+            customY: Math.round(result.height * 0.44),
+            customFontSize: Math.max(48, Math.round(result.width * 0.048)),
+            color: '#0e1838',
+          });
+          setTemplateElements([defaultNameEl]);
+          setSelectedElementId(defaultNameEl.id);
+        }
+
+        setStep('preview_template');
+      } else if (isPdf) {
         const result = await convertPdfToImageDataUrl(file);
         setTemplateDataUrl(result.dataUrl);
         setTemplateDetails({
@@ -662,13 +693,18 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Workflow Step Tracker Bar */}
-      <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-md border border-slate-800 flex items-center justify-between overflow-x-auto">
-        <div className="flex items-center space-x-2 shrink-0">
+      <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-md border border-slate-800 flex items-center justify-between overflow-x-auto gap-4">
+        <div className="flex items-center space-x-3 shrink-0">
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-xs">
             SS
           </div>
           <div>
-            <div className="text-xs font-bold text-slate-100">Certificate Generation Workflow</div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-100">Certificate Generation Workflow</span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                🖨️ CMYK 300 DPI MODE ONLY
+              </span>
+            </div>
             <div className="text-[10px] text-slate-400">
               {step === 'upload_template' && 'Step 1: Upload Master Certificate Template'}
               {step === 'preview_template' && 'Step 2: Preview Master Template'}
@@ -766,7 +802,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           <div className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-10 text-center bg-slate-50 hover:bg-blue-50/40 transition-all cursor-pointer relative group">
             <input
               type="file"
-              accept="image/png, image/jpeg, image/jpg, application/pdf"
+              accept="image/png, image/jpeg, image/jpg, image/webp, application/pdf, .pdf, .ott, .odt, application/vnd.oasis.opendocument.text-template, application/vnd.oasis.opendocument.text, application/x-vnd.oasis.opendocument.text-template"
               disabled={isProcessingTemplate}
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -778,7 +814,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
               <div className="flex flex-col items-center justify-center space-y-3 py-4">
                 <RefreshCw className="w-10 h-10 text-blue-600 animate-spin" />
                 <p className="text-sm font-extrabold text-slate-800">Processing Master Template File...</p>
-                <p className="text-xs text-slate-500">Converting PDF/Image to high-resolution vector canvas</p>
+                <p className="text-xs text-slate-500">Converting OTT / PDF / Image to high-resolution vector canvas</p>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center space-y-4">
@@ -790,11 +826,18 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                     Drag & Drop Certificate Template
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    Supports PNG, JPG, JPEG, PDF files
+                    Supports <span className="font-semibold text-slate-700">OTT (LibreOffice / OpenOffice)</span>, PDF, PNG, JPG, JPEG, ODT
                   </p>
+                  <div className="flex items-center justify-center gap-1.5 mt-2.5">
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">.OTT</span>
+                    <span className="px-2 py-0.5 bg-red-100 text-red-800 text-[10px] font-bold rounded">.PDF</span>
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded">.PNG</span>
+                    <span className="px-2 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-bold rounded">.JPG</span>
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-700 text-[10px] font-bold rounded">.ODT</span>
+                  </div>
                 </div>
                 <button className="px-5 py-2.5 bg-blue-600 text-white font-bold text-xs rounded-xl shadow-md hover:bg-blue-500 transition-colors pointer-events-none">
-                  Browse Template
+                  Browse Template (.ott, .pdf, images)
                 </button>
               </div>
             )}
@@ -956,6 +999,17 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                   )}
                 </select>
               </div>
+
+              {/* Global Styling Helper Action */}
+              <button
+                type="button"
+                onClick={handleEnforceGlobalStyling}
+                className="px-3 py-2 bg-gradient-to-r from-cyan-900 to-blue-900 hover:from-cyan-800 hover:to-blue-800 text-cyan-200 font-bold text-xs rounded-xl border border-cyan-400/40 transition-all flex items-center space-x-1.5 shadow-xs"
+                title="Enforce 'Bebas Kai' font on all text layers and force center alignment on dynamic fields"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                <span>Enforce Bebas Kai (Centered)</span>
+              </button>
 
               <div className="flex items-center space-x-2 shrink-0 ml-auto">
                 <button
@@ -1147,42 +1201,29 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                     </div>
                   </div>
 
-                  {/* Color, Align, Weight */}
-                  <div className="grid grid-cols-3 gap-3 items-center pt-1">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400">Color:</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="color"
-                          value={selectedElement.color || '#0e1838'}
-                          onChange={(e) => updateSelectedElement({ color: e.target.value })}
-                          className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-none"
-                        />
-                        <span className="font-mono text-[10px] text-slate-300 uppercase">{selectedElement.color || '#0e1838'}</span>
-                      </div>
-                    </div>
-
+                  {/* Alignment & Style */}
+                  <div className="grid grid-cols-2 gap-3 items-center pt-1">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold text-slate-400">Alignment:</label>
                       <div className="flex items-center space-x-1 bg-slate-800 p-1 rounded-lg border border-slate-700">
                         <button
                           type="button"
                           onClick={() => updateSelectedElement({ align: 'left' })}
-                          className={`p-1 rounded ${selectedElement.align === 'left' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                          className={`p-1 rounded flex-1 flex justify-center ${selectedElement.align === 'left' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
                         >
                           <AlignLeft className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => updateSelectedElement({ align: 'center' })}
-                          className={`p-1 rounded ${selectedElement.align === 'center' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                          className={`p-1 rounded flex-1 flex justify-center ${selectedElement.align === 'center' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
                         >
                           <AlignCenter className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => updateSelectedElement({ align: 'right' })}
-                          className={`p-1 rounded ${selectedElement.align === 'right' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                          className={`p-1 rounded flex-1 flex justify-center ${selectedElement.align === 'right' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
                         >
                           <AlignRight className="w-3.5 h-3.5" />
                         </button>
@@ -1190,26 +1231,165 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400">Style:</label>
+                      <label className="text-[10px] font-bold text-slate-400">Typography Style:</label>
                       <div className="flex items-center space-x-1">
                         <button
                           type="button"
                           onClick={() => updateSelectedElement({ fontWeight: selectedElement.fontWeight === 'bold' ? 'normal' : 'bold' })}
-                          className={`px-2 py-1 rounded text-xs font-bold border ${
+                          className={`px-3 py-1 rounded text-xs font-bold border flex-1 ${
                             selectedElement.fontWeight === 'bold' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-slate-400 border-slate-700'
                           }`}
                         >
-                          B
+                          Bold
                         </button>
                         <button
                           type="button"
                           onClick={() => updateSelectedElement({ fontStyle: selectedElement.fontStyle === 'italic' ? 'normal' : 'italic' })}
-                          className={`px-2 py-1 rounded text-xs italic border ${
+                          className={`px-3 py-1 rounded text-xs italic border flex-1 ${
                             selectedElement.fontStyle === 'italic' ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-800 text-slate-400 border-slate-700'
                           }`}
                         >
-                          I
+                          Italic
                         </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CMYK COLOR CONTROLLER (COMMERCIAL PRINT ONLY) */}
+                  <div className="p-3 bg-slate-950/70 rounded-xl border border-cyan-500/30 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                        <span className="text-[11px] font-black text-cyan-300 uppercase tracking-wide">
+                          CMYK Print Color Controller
+                        </span>
+                      </div>
+                      {(() => {
+                        const currentCmyk = hexToCmyk(selectedElement.color || '#0e1838');
+                        return (
+                          <div className="flex items-center space-x-1.5">
+                            <span
+                              className="w-4 h-4 rounded-md border border-white/20 shadow-xs inline-block"
+                              style={{ backgroundColor: selectedElement.color || '#0e1838' }}
+                            />
+                            <span className="font-mono text-[10px] font-bold text-cyan-200">
+                              {formatCmykDisplay(currentCmyk)}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* CMYK 4-Channel Sliders */}
+                    {(() => {
+                      const cur = hexToCmyk(selectedElement.color || '#0e1838');
+                      const handleCmykChange = (channel: keyof CmykColor, val: number) => {
+                        const next: CmykColor = { ...cur, [channel]: val };
+                        const nextHex = cmykToHex(next);
+                        updateSelectedElement({ color: nextHex });
+                      };
+
+                      return (
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          {/* Cyan */}
+                          <div className="bg-slate-900/90 p-1.5 rounded-lg border border-cyan-500/20 space-y-1">
+                            <div className="flex justify-between font-bold text-cyan-400">
+                              <span>Cyan (C)</span>
+                              <span>{cur.c}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={cur.c}
+                              onChange={(e) => handleCmykChange('c', Number(e.target.value))}
+                              className="w-full accent-cyan-400 cursor-pointer h-1.5"
+                            />
+                          </div>
+
+                          {/* Magenta */}
+                          <div className="bg-slate-900/90 p-1.5 rounded-lg border border-pink-500/20 space-y-1">
+                            <div className="flex justify-between font-bold text-pink-400">
+                              <span>Magenta (M)</span>
+                              <span>{cur.m}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={cur.m}
+                              onChange={(e) => handleCmykChange('m', Number(e.target.value))}
+                              className="w-full accent-pink-400 cursor-pointer h-1.5"
+                            />
+                          </div>
+
+                          {/* Yellow */}
+                          <div className="bg-slate-900/90 p-1.5 rounded-lg border border-amber-500/20 space-y-1">
+                            <div className="flex justify-between font-bold text-amber-400">
+                              <span>Yellow (Y)</span>
+                              <span>{cur.y}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={cur.y}
+                              onChange={(e) => handleCmykChange('y', Number(e.target.value))}
+                              className="w-full accent-amber-400 cursor-pointer h-1.5"
+                            />
+                          </div>
+
+                          {/* Key / Black */}
+                          <div className="bg-slate-900/90 p-1.5 rounded-lg border border-slate-500/20 space-y-1">
+                            <div className="flex justify-between font-bold text-slate-300">
+                              <span>Key/Black (K)</span>
+                              <span>{cur.k}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={cur.k}
+                              onChange={(e) => handleCmykChange('k', Number(e.target.value))}
+                              className="w-full accent-slate-400 cursor-pointer h-1.5"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Certified CMYK Swatch Presets */}
+                    <div className="space-y-1 pt-1 border-t border-slate-800">
+                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                        Certified Print CMYK Swatches:
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {CMYK_PRESETS.map((preset) => {
+                          const isSelected = selectedElement.color?.toLowerCase() === preset.hex.toLowerCase();
+                          return (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              onClick={() => updateSelectedElement({ color: preset.hex })}
+                              className={`p-1 rounded-lg text-left transition-all border ${
+                                isSelected
+                                  ? 'bg-blue-600/30 border-blue-400 ring-1 ring-blue-400'
+                                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800'
+                              }`}
+                              title={`${preset.name}: C:${preset.cmyk.c}% M:${preset.cmyk.m}% Y:${preset.cmyk.y}% K:${preset.cmyk.k}%`}
+                            >
+                              <div className="flex items-center space-x-1.5">
+                                <span
+                                  className="w-3 h-3 rounded-full shrink-0 border border-white/20"
+                                  style={{ backgroundColor: preset.hex }}
+                                />
+                                <span className="text-[9px] font-bold text-slate-300 truncate">
+                                  {preset.name.split(' ')[0]}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1335,9 +1515,20 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                       if (displayText.includes('{{Record Title}}')) displayText = displayText.replace('{{Record Title}}', 'Fastest Mental Calculation');
                       if (displayText.includes('{{DATE}}')) displayText = displayText.replace('{{DATE}}', '12 August 2026');
 
-                      // Accurate font size scaling based on displayed height
+                      // Accurate font size scaling based on displayed height and dynamic text resizing
                       const scale = (displayedImgHeight || 560) / h;
-                      const scaledFontSize = Math.max(10, Math.round((el.fontSize || 48) * scale));
+                      const autoFitResult = calculateAutoFitFontSize({
+                        text: displayText,
+                        maxWidth: el.width,
+                        baseFontSize: el.fontSize || 48,
+                        fontFamily: el.fontFamily || GLOBAL_ENFORCED_FONT,
+                        fontWeight: el.fontWeight || 'bold',
+                        fontStyle: el.fontStyle || 'normal',
+                        minFontSize: el.minFontSize || 14,
+                        safetyPadding: 6,
+                      });
+
+                      const scaledFontSize = Math.max(10, Math.round(autoFitResult.fontSize * scale));
 
                       return (
                         <div
@@ -1349,9 +1540,9 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                             left: `${leftPct}%`,
                             width: `${widthPct}%`,
                             textAlign: el.align || 'center',
-                            fontFamily: el.fontFamily || 'serif',
+                            fontFamily: el.fontFamily || GLOBAL_ENFORCED_FONT,
                             fontSize: `${scaledFontSize}px`,
-                            fontWeight: el.fontWeight || 'normal',
+                            fontWeight: el.fontWeight || 'bold',
                             fontStyle: el.fontStyle || 'normal',
                             color: el.color || '#0e1838',
                             padding: '2px 4px',
@@ -1365,6 +1556,11 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                           }`}
                         >
                         <span className="drop-shadow-xs truncate max-w-full">{displayText}</span>
+                        {autoFitResult.isScaled && (
+                          <span className="absolute -bottom-2.5 right-1 px-1 py-0.2 bg-amber-500 text-slate-950 font-mono text-[8px] font-bold rounded shadow-xs">
+                            Auto: {autoFitResult.fontSize}px
+                          </span>
+                        )}
                         {isSelected && (
                           <span className="absolute -top-3 -right-2 px-1.5 py-0.2 bg-blue-600 text-white font-mono text-[9px] rounded font-bold shadow-xs">
                             #{idx + 1}
@@ -1580,8 +1776,13 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
         <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Preview First Certificate</h2>
-              <p className="text-xs text-slate-500">
+              <div className="flex items-center space-x-2">
+                <h2 className="text-xl font-bold text-slate-900">Preview First Certificate</h2>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-cyan-100 text-cyan-800 border border-cyan-300">
+                  CMYK PRINT READY
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
                 Verify recipient name placement on Excel Row 1 (<span className="font-bold text-blue-700">{rows[0]?.[selectedNameCol] || 'Sathya Sai JS'}</span>) before bulk generating
               </p>
             </div>

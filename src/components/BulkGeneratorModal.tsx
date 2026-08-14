@@ -158,15 +158,22 @@ export const BulkGeneratorModal: React.FC<BulkGeneratorModalProps> = ({
       <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-6">
         
         {/* Header */}
-        <div className="flex items-center space-x-3 pb-4 border-b border-slate-100">
-          <div className="p-2.5 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl text-white shadow-sm">
-            <Award className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-900">Automatic Certificate Generation</h3>
-            <p className="text-xs text-slate-500">
-              Template: <span className="font-semibold text-slate-700">{template.name}</span> ({dataset.rows.length} rows)
-            </p>
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl text-white shadow-sm">
+              <Award className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-base font-bold text-slate-900">Automatic Certificate Generation</h3>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-cyan-100 text-cyan-900 border border-cyan-300">
+                  CMYK MODE ONLY
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Template: <span className="font-semibold text-slate-700">{template.name}</span> ({dataset.rows.length} rows)
+              </p>
+            </div>
           </div>
         </div>
 

@@ -160,7 +160,7 @@ export const IndividualCertificateEditorModal: React.FC<IndividualCertificateEdi
                         height: `${(el.height / template.size.pxHeight) * 100}%`,
                         fontSize: `${(el.fontSize || 16) * 0.35}px`,
                         fontWeight: el.fontWeight || 'normal',
-                        fontFamily: el.fontFamily || 'serif',
+                        fontFamily: el.fontFamily || 'Bebas Kai',
                         color: el.color || '#000000',
                       }}
                     >

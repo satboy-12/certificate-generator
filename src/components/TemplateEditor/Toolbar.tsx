@@ -32,6 +32,7 @@ interface ToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  onEnforceGlobalStyling?: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -51,6 +52,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   canRedo,
   onUndo,
   onRedo,
+  onEnforceGlobalStyling,
 }) => {
   return (
     <div className="bg-slate-900 border-b border-slate-800 text-white px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -64,6 +66,19 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             {template.size.name} ({template.size.width}×{template.size.height}{template.size.unit})
           </span>
         </div>
+
+        {/* Global Bebas Kai & Center Align Enforcer Tool */}
+        {onEnforceGlobalStyling && (
+          <button
+            type="button"
+            onClick={onEnforceGlobalStyling}
+            className="inline-flex items-center space-x-1.5 bg-gradient-to-r from-cyan-950 to-blue-950 hover:from-cyan-900 hover:to-blue-900 text-cyan-200 border border-cyan-500/40 px-2.5 py-1.5 rounded-lg font-bold transition-all shadow-xs"
+            title="Enforce 'Bebas Kai' font style on all text elements and center alignment on all dynamic fields"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="font-mono text-[11px]">Enforce Bebas Kai</span>
+          </button>
+        )}
 
         {/* Support switching between two sizes (e.g. A4 vs A5) */}
         {templatesForProject.length > 1 && (
@@ -151,12 +166,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Right Group: Upload Background, Save & Auto-Generate */}
       <div className="flex items-center space-x-2">
-        <label className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium">
+        <label className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer transition-colors font-medium" title="Upload background image, PDF, or OTT template">
           <Upload className="w-3.5 h-3.5 text-slate-400" />
           <span>Upload Background</span>
           <input
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept="image/png,image/jpeg,image/webp,application/pdf,.pdf,.ott,.odt,application/vnd.oasis.opendocument.text-template,application/vnd.oasis.opendocument.text"
             onChange={onUploadBackground}
             className="hidden"
           />

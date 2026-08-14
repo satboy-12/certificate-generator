@@ -233,6 +233,47 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 />
               </div>
             </div>
+
+            {/* Dynamic Text-Resizing Helper Controls */}
+            <div className="p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[11px] font-bold text-blue-950 flex items-center">
+                    Auto-Fit Text Resizing
+                  </span>
+                  <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-bold uppercase">
+                    Active
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedElement.autoFit !== false}
+                    onChange={(e) => onUpdateElement({ autoFit: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-8 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between text-[10px] text-blue-800">
+                <span>Min Font Floor:</span>
+                <div className="flex items-center space-x-1">
+                  <input
+                    type="number"
+                    min={8}
+                    max={selectedElement.fontSize || 48}
+                    value={selectedElement.minFontSize || 14}
+                    onChange={(e) => onUpdateElement({ minFontSize: Number(e.target.value) })}
+                    className="w-12 bg-white border border-blue-200 rounded px-1.5 py-0.5 text-[11px] font-bold text-blue-900 text-center"
+                  />
+                  <span className="text-[10px] text-blue-600">px</span>
+                </div>
+              </div>
+              <p className="text-[9.5px] text-blue-700 leading-tight">
+                Automatically reduces font size if recipient's name exceeds the defined width ({selectedElement.width}px), keeping it centered.
+              </p>
+            </div>
           </div>
         )}
 

@@ -8,6 +8,12 @@ import {
   CanvasElement,
   BrandingSettings,
 } from '../types';
+import {
+  enforceCmykGamut,
+  applyCmykGamutToCanvasContext,
+  hexToCmyk,
+} from './cmykUtils';
+import { calculateAutoFitFontSize } from './editorStylingHelper';
 
 // ==========================================
 // HIGH-SPEED IN-MEMORY IMAGE & ASSET CACHES
@@ -46,7 +52,7 @@ export async function getLoadedImage(src: string): Promise<HTMLImageElement | nu
   return promise;
 }
 
-// Generate QR Code as Data URL with caching
+// Generate QR Code as Data URL with CMYK K-100 Black styling
 export async function generateQrDataUrl(text: string): Promise<string> {
   if (!text) return '';
   if (qrCache.has(text)) {
@@ -57,8 +63,8 @@ export async function generateQrDataUrl(text: string): Promise<string> {
       margin: 1,
       width: 250,
       color: {
-        dark: '#0f172a',
-        light: '#ffffff',
+        dark: '#000000', // CMYK 100% K Black
+        light: '#ffffff', // CMYK 0% Background
       },
     });
     qrCache.set(text, dataUrl);
@@ -124,7 +130,7 @@ export async function createStaticLayerCanvas(
   if (!ctx) return canvas;
 
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = template.backgroundColor || '#ffffff';
+  ctx.fillStyle = enforceCmykGamut(template.backgroundColor || '#ffffff');
   ctx.fillRect(0, 0, width, height);
 
   if (template.backgroundUrl) {
@@ -152,8 +158,8 @@ export async function createStaticLayerCanvas(
     }
 
     if (el.type === 'shape') {
-      ctx.fillStyle = el.fillColor || 'transparent';
-      ctx.strokeStyle = el.strokeColor || '#000000';
+      ctx.fillStyle = el.fillColor && el.fillColor !== 'transparent' ? enforceCmykGamut(el.fillColor) : 'transparent';
+      ctx.strokeStyle = enforceCmykGamut(el.strokeColor || '#000000');
       ctx.lineWidth = el.strokeWidth || 1;
 
       if (el.borderRadius && el.borderRadius > 0) {
@@ -170,7 +176,7 @@ export async function createStaticLayerCanvas(
         }
       }
     } else if (el.type === 'line') {
-      ctx.strokeStyle = el.strokeColor || '#000000';
+      ctx.strokeStyle = enforceCmykGamut(el.strokeColor || '#000000');
       ctx.lineWidth = el.strokeWidth || 1;
       ctx.beginPath();
       ctx.moveTo(el.x, el.y);
@@ -179,11 +185,26 @@ export async function createStaticLayerCanvas(
     } else if (el.type === 'text') {
       const fontStyle = el.fontStyle || 'normal';
       const fontWeight = el.fontWeight || 'normal';
-      const fontSize = el.fontSize || 16;
-      const fontFamily = el.fontFamily || 'sans-serif';
+      const baseFontSize = el.fontSize || 16;
+      const fontFamily = el.fontFamily || 'Bebas Kai';
+      const minFontSize = el.minFontSize || 12;
 
-      ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
-      ctx.fillStyle = el.color || '#0f172a';
+      // Dynamic text-resizing for text elements
+      const autoFit = calculateAutoFitFontSize({
+        text: el.text || '',
+        maxWidth: el.width,
+        baseFontSize,
+        fontFamily,
+        fontWeight,
+        fontStyle,
+        minFontSize,
+        safetyPadding: 4,
+      });
+
+      const fontSize = autoFit.fontSize;
+
+      ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}", "Bebas Kai", "Bebas Neue", sans-serif`;
+      ctx.fillStyle = enforceCmykGamut(el.color || '#0e1838');
       ctx.textAlign = (el.align === 'center' || el.align === 'right' ? el.align : 'left') as CanvasTextAlign;
       ctx.textBaseline = 'top';
 
@@ -280,18 +301,36 @@ async function renderDynamicElements(
 
       const fontStyle = el.fontStyle || 'normal';
       const fontWeight = el.fontWeight || 'normal';
-      const fontSize = el.fontSize || 16;
-      const fontFamily = el.fontFamily || 'sans-serif';
+      const baseFontSize = el.fontSize || 16;
+      const fontFamily = el.fontFamily || 'Bebas Kai';
+      const minFontSize = el.minFontSize || 12;
 
-      ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
-      ctx.fillStyle = el.color || '#0f172a';
-      ctx.textAlign = (el.align === 'center' || el.align === 'right' ? el.align : 'left') as CanvasTextAlign;
+      // Dynamic text-resizing helper: automatically reduce font size if string exceeds width
+      const autoFit = calculateAutoFitFontSize({
+        text: formattedText,
+        maxWidth: el.width,
+        baseFontSize,
+        fontFamily,
+        fontWeight,
+        fontStyle,
+        minFontSize,
+        safetyPadding: 4,
+      });
+
+      const fontSize = autoFit.fontSize;
+
+      ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}", "Bebas Kai", "Bebas Neue", sans-serif`;
+      ctx.fillStyle = enforceCmykGamut(el.color || '#0e1838');
+
+      // Enforce center alignment on dynamic fields or when specified
+      const align = (el.type === 'dynamic_field' ? (el.align || 'center') : (el.align || 'left')) as CanvasTextAlign;
+      ctx.textAlign = align;
       ctx.textBaseline = 'top';
 
       let drawX = el.x;
-      if (el.align === 'center') {
+      if (align === 'center') {
         drawX = el.x + el.width / 2;
-      } else if (el.align === 'right') {
+      } else if (align === 'right') {
         drawX = el.x + el.width;
       }
 

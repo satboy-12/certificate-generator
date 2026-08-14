@@ -46,6 +46,10 @@ export const Header: React.FC<HeaderProps> = ({
               | Certificate Printing System
             </span>
           </h1>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-cyan-100 text-cyan-900 border border-cyan-300 shadow-xs" title="Strict CMYK Color Mode for Commercial Press">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-600 animate-pulse" />
+            CMYK MODE ONLY
+          </span>
         </div>
 
         {/* Active Project Switcher */}

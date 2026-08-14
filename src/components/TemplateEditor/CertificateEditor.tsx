@@ -9,7 +9,17 @@ import { Toolbar } from './Toolbar';
 import { ElementsSidebar } from './ElementsSidebar';
 import { PropertiesPanel } from './PropertiesPanel';
 import { processTextTemplate, generateQrDataUrl } from '../../lib/certificateEngine';
-import { Move, Layers, AlertCircle } from 'lucide-react';
+import { convertPdfToImageDataUrl } from '../../lib/pdfHelper';
+import { convertOttToImageDataUrl } from '../../lib/ottHelper';
+import {
+  createStyledDynamicField,
+  createStyledTextElement,
+  enforceGlobalStyling,
+  ensureBebasKaiLoaded,
+  calculateAutoFitFontSize,
+  GLOBAL_ENFORCED_FONT,
+} from '../../lib/editorStylingHelper';
+import { Move, Layers, AlertCircle, Sparkles } from 'lucide-react';
 
 interface CertificateEditorProps {
   template: CertificateTemplate;
@@ -92,6 +102,11 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
     }
   };
 
+  // Ensure Bebas Kai font is loaded in browser
+  useEffect(() => {
+    ensureBebasKaiLoaded();
+  }, []);
+
   // Save current template state
   const handleSave = () => {
     const updatedTemplate: CertificateTemplate = {
@@ -105,6 +120,13 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
     onSaveTemplate(updatedTemplate);
   };
 
+  // Enforce global styling helper across all elements
+  const handleEnforceGlobalStyling = () => {
+    const enforced = enforceGlobalStyling(elements);
+    setElements(enforced);
+    pushHistory(enforced);
+  };
+
   // Add new element to canvas
   const handleAddElement = (newEl: CanvasElement) => {
     const updated = [...elements, newEl];
@@ -114,49 +136,32 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
   };
 
   const handleAddText = () => {
-    const newEl: CanvasElement = {
-      id: `text_${Date.now()}`,
-      type: 'text',
-      name: 'Static Text',
-      x: template.size.pxWidth / 2 - 150,
-      y: template.size.pxHeight / 2 - 20,
-      width: 300,
-      height: 40,
-      rotation: 0,
-      opacity: 1,
-      zIndex: elements.length + 1,
+    const newEl = createStyledTextElement({
       text: 'Click to edit text',
-      fontFamily: 'serif',
-      fontSize: 20,
-      fontWeight: 'bold',
-      color: '#0f172a',
+      name: 'Static Text',
+      templateWidth: template.size.pxWidth,
+      templateHeight: template.size.pxHeight,
+      zIndex: elements.length + 1,
+      customY: template.size.pxHeight / 2 - 20,
+      customFontSize: 24,
+      color: '#0e1838',
       align: 'center',
-    };
+    });
     handleAddElement(newEl);
   };
 
   const handleAddDynamicField = (field: DynamicFieldDef) => {
     const w = template.size.pxWidth;
-    const boxW = Math.round(w * 0.85);
-    const newEl: CanvasElement = {
-      id: `field_${field.key}_${Date.now()}`,
-      type: 'dynamic_field',
-      name: field.label,
-      dynamicFieldKey: field.key,
-      x: Math.round((w - boxW) / 2),
-      y: template.size.pxHeight / 2 - 25,
-      width: boxW,
-      height: 60,
-      rotation: 0,
-      opacity: 1,
+    const newEl = createStyledDynamicField({
+      fieldKey: field.key,
+      fieldLabel: field.label,
+      templateWidth: w,
+      templateHeight: template.size.pxHeight,
       zIndex: elements.length + 1,
-      text: `{{${field.key}}}`,
-      fontFamily: 'Bebas Kai',
-      fontSize: Math.max(48, Math.round(w * 0.048)),
-      fontWeight: 'bold',
+      customY: template.size.pxHeight / 2 - 30,
+      customFontSize: Math.max(48, Math.round(w * 0.048)),
       color: '#0e1838',
-      align: 'center',
-    };
+    });
     handleAddElement(newEl);
   };
 
@@ -220,16 +225,35 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
     handleAddElement(newEl);
   };
 
-  const handleUploadBackground = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadBackground = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        if (evt.target?.result) {
-          setBackgroundUrl(evt.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isOtt =
+      file.name.toLowerCase().endsWith('.ott') ||
+      file.name.toLowerCase().endsWith('.odt') ||
+      file.type === 'application/vnd.oasis.opendocument.text-template' ||
+      file.type === 'application/vnd.oasis.opendocument.text';
+
+    try {
+      if (isOtt) {
+        const result = await convertOttToImageDataUrl(file);
+        setBackgroundUrl(result.dataUrl);
+      } else if (isPdf) {
+        const result = await convertPdfToImageDataUrl(file);
+        setBackgroundUrl(result.dataUrl);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          if (evt.target?.result) {
+            setBackgroundUrl(evt.target.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err) {
+      console.error('Failed to load background template:', err);
     }
   };
 
@@ -346,6 +370,7 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
         canRedo={historyIdx < history.length - 1}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        onEnforceGlobalStyling={handleEnforceGlobalStyling}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -431,27 +456,52 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
                     ? processTextTemplate(el.text || '', sampleData, branding, 'BSR-2026-0001')
                     : el.text || '';
 
+                  // Dynamic text-resizing helper: automatically scale font size down if string exceeds plain space width
+                  const autoFitResult = calculateAutoFitFontSize({
+                    text: displayedText,
+                    maxWidth: el.width,
+                    baseFontSize: el.fontSize || 16,
+                    fontFamily: el.fontFamily || GLOBAL_ENFORCED_FONT,
+                    fontWeight: el.fontWeight || 'bold',
+                    fontStyle: el.fontStyle || 'normal',
+                    minFontSize: el.minFontSize || 14,
+                    safetyPadding: 8,
+                  });
+
+                  const activeFontSize = autoFitResult.fontSize;
+                  const isAutoScaled = autoFitResult.isScaled;
+                  const isCentered = el.align === 'center' || el.type === 'dynamic_field';
+
                   content = (
                     <div
-                      className="w-full h-full flex items-center"
+                      className="w-full h-full flex items-center relative overflow-hidden"
                       style={{
-                        justifyContent:
-                          el.align === 'center'
-                            ? 'center'
-                            : el.align === 'right'
-                            ? 'flex-end'
-                            : 'flex-start',
-                        fontFamily: el.fontFamily || 'serif',
-                        fontSize: `${el.fontSize || 16}px`,
-                        fontWeight: el.fontWeight || 'normal',
+                        justifyContent: isCentered
+                          ? 'center'
+                          : el.align === 'right'
+                          ? 'flex-end'
+                          : 'flex-start',
+                        fontFamily: el.fontFamily || GLOBAL_ENFORCED_FONT,
+                        fontSize: `${activeFontSize}px`,
+                        fontWeight: el.fontWeight || 'bold',
                         fontStyle: el.fontStyle || 'normal',
                         textDecoration: el.textDecoration || 'none',
-                        color: el.color || '#0f172a',
-                        textAlign: el.align || 'left',
+                        color: el.color || '#0e1838',
+                        textAlign: isCentered ? 'center' : (el.align || 'left'),
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {displayedText}
+                      <span className="max-w-full truncate">{displayedText}</span>
+
+                      {/* Dynamic auto-fit resize indicator badge */}
+                      {isAutoScaled && (
+                        <span
+                          className="absolute -bottom-3 right-0 bg-amber-500 text-slate-950 font-mono text-[8px] font-extrabold px-1 py-0.2 rounded shadow-xs uppercase tracking-tight pointer-events-none"
+                          title={`Auto-resized from ${el.fontSize}px to ${activeFontSize}px to fit width`}
+                        >
+                          Auto: {activeFontSize}px
+                        </span>
+                      )}
                     </div>
                   );
                 } else if (el.type === 'qr_code') {
