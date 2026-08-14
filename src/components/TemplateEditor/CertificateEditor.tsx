@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   CertificateTemplate,
+  CertificateSize,
   CanvasElement,
   DynamicFieldDef,
   BrandingSettings,
@@ -38,6 +39,7 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
   onSwitchTemplate,
   onGenerateClick,
 }) => {
+  const [templateSize, setTemplateSize] = useState<CertificateSize>(template.size);
   const [elements, setElements] = useState<CanvasElement[]>(template.elements || []);
   const [dynamicFields, setDynamicFields] = useState<DynamicFieldDef[]>(template.dynamicFields || []);
   const [backgroundColor, setBackgroundColor] = useState<string>(template.backgroundColor || '#ffffff');
@@ -47,6 +49,15 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
   const [zoom, setZoom] = useState<number>(0.75);
   const [showGrid, setShowGrid] = useState<boolean>(true);
   const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
+
+  // Sync state when active template prop changes
+  useEffect(() => {
+    setTemplateSize(template.size);
+    setElements(template.elements || []);
+    setDynamicFields(template.dynamicFields || []);
+    setBackgroundColor(template.backgroundColor || '#ffffff');
+    setBackgroundUrl(template.backgroundUrl);
+  }, [template]);
 
   // Undo / Redo history
   const [history, setHistory] = useState<CanvasElement[][]>([template.elements || []]);
@@ -111,6 +122,7 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
   const handleSave = () => {
     const updatedTemplate: CertificateTemplate = {
       ...template,
+      size: templateSize,
       elements,
       dynamicFields,
       backgroundColor,
@@ -240,14 +252,53 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
       if (isOtt) {
         const result = await convertOttToImageDataUrl(file);
         setBackgroundUrl(result.dataUrl);
+        setTemplateSize({
+          name: result.paperSizeName,
+          width: result.widthMm,
+          height: result.heightMm,
+          unit: 'mm',
+          pxWidth: result.width,
+          pxHeight: result.height,
+          orientation: result.orientation,
+        });
       } else if (isPdf) {
         const result = await convertPdfToImageDataUrl(file);
         setBackgroundUrl(result.dataUrl);
+        setTemplateSize({
+          name: result.paperSizeName,
+          width: result.widthMm,
+          height: result.heightMm,
+          unit: 'mm',
+          pxWidth: result.width,
+          pxHeight: result.height,
+          orientation: result.orientation,
+        });
       } else {
         const reader = new FileReader();
         reader.onload = (evt) => {
           if (evt.target?.result) {
-            setBackgroundUrl(evt.target.result as string);
+            const dataUrl = evt.target.result as string;
+            setBackgroundUrl(dataUrl);
+
+            const img = new Image();
+            img.onload = () => {
+              const w = img.naturalWidth || img.width;
+              const h = img.naturalHeight || img.height;
+              const isLandscape = w >= h;
+              const widthMm = Number(((w * 25.4) / 96).toFixed(2));
+              const heightMm = Number(((h * 25.4) / 96).toFixed(2));
+
+              setTemplateSize({
+                name: `${w} × ${h} px (${widthMm} × ${heightMm} mm Exact Size)`,
+                width: widthMm,
+                height: heightMm,
+                unit: 'mm',
+                pxWidth: w,
+                pxHeight: h,
+                orientation: isLandscape ? 'landscape' : 'portrait',
+              });
+            };
+            img.src = dataUrl;
           }
         };
         reader.readAsDataURL(file);
@@ -347,14 +398,14 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
     }
   };
 
-  const canvasPxW = template.size.pxWidth;
-  const canvasPxH = template.size.pxHeight;
+  const canvasPxW = templateSize.pxWidth;
+  const canvasPxH = templateSize.pxHeight;
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-slate-950 overflow-hidden">
       {/* Top Toolbar */}
       <Toolbar
-        template={template}
+        template={{ ...template, size: templateSize }}
         templatesForProject={templatesForProject}
         zoom={zoom}
         showGrid={showGrid}

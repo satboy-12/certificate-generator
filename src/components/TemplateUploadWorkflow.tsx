@@ -106,6 +106,8 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     fileSizeStr: string;
     width: number;
     height: number;
+    widthMm?: number;
+    heightMm?: number;
     orientation: 'landscape' | 'portrait';
     paperSizeName: string;
   } | null>(null);
@@ -307,6 +309,8 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           fileSizeStr: `${fileSizeMB} MB`,
           width: result.width,
           height: result.height,
+          widthMm: result.widthMm,
+          heightMm: result.heightMm,
           orientation: result.orientation,
           paperSizeName: result.paperSizeName,
         });
@@ -339,6 +343,8 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           fileSizeStr: `${fileSizeMB} MB`,
           width: result.width,
           height: result.height,
+          widthMm: result.widthMm,
+          heightMm: result.heightMm,
           orientation: result.orientation,
           paperSizeName: result.paperSizeName,
         });
@@ -378,10 +384,12 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
 
           const img = new Image();
           img.onload = () => {
-            const w = img.width || 794;
-            const h = img.height || 1123;
-            const isLandscape = w > h;
+            const w = img.naturalWidth || img.width || 794;
+            const h = img.naturalHeight || img.height || 1123;
+            const isLandscape = w >= h;
             const orientation = isLandscape ? 'landscape' : 'portrait';
+            const widthMm = Number(((w * 25.4) / 96).toFixed(2));
+            const heightMm = Number(((h * 25.4) / 96).toFixed(2));
 
             setTemplateDetails({
               fileName: file.name,
@@ -389,8 +397,10 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
               fileSizeStr: `${fileSizeMB} MB`,
               width: w,
               height: h,
+              widthMm,
+              heightMm,
               orientation,
-              paperSizeName: isLandscape ? 'A4 Landscape (297 × 210 mm)' : 'A4 Portrait (210 × 297 mm)',
+              paperSizeName: `${w} × ${h} px (${widthMm} × ${heightMm} mm Exact Size)`,
             });
 
             const imgBoxWidth = Math.round(w * 0.85);
@@ -428,8 +438,10 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
               fileSizeStr: `${fileSizeMB} MB`,
               width: 794,
               height: 1123,
+              widthMm: 210,
+              heightMm: 297,
               orientation: 'portrait',
-              paperSizeName: 'A4 Portrait (210 × 297 mm)',
+              paperSizeName: '210 × 297 mm Exact Size',
             });
             setStep('preview_template');
           };
@@ -447,8 +459,10 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
         fileSizeStr: `${fileSizeMB} MB`,
         width: 794,
         height: 1123,
+        widthMm: 210,
+        heightMm: 297,
         orientation: 'portrait',
-        paperSizeName: 'A4 Portrait Master',
+        paperSizeName: '210 × 297 mm Exact Size',
       });
       setStep('preview_template');
     } finally {
@@ -478,7 +492,9 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   const buildActiveTemplateObject = (): CertificateTemplate => {
     const w = templateDetails?.width || 794;
     const h = templateDetails?.height || 1123;
-    const orientation = templateDetails?.orientation || 'portrait';
+    const orientation = templateDetails?.orientation || (w >= h ? 'landscape' : 'portrait');
+    const widthMm = templateDetails?.widthMm || Number(((w * 25.4) / 96).toFixed(2));
+    const heightMm = templateDetails?.heightMm || Number(((h * 25.4) / 96).toFixed(2));
     const activeBgUrl = templateDataUrl || SEVENTH_SENSE_MASTER_ORIGINAL_BACKGROUND_SVG;
 
     const dynamicFieldsMap = new Map<string, DynamicFieldDef>();
@@ -505,9 +521,9 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
       projectId: currentProject.id,
       name: templateDetails?.fileName || 'Master Certificate Template',
       size: {
-        name: templateDetails?.paperSizeName || 'A4 Master',
-        width: orientation === 'landscape' ? 297 : 210,
-        height: orientation === 'landscape' ? 210 : 297,
+        name: templateDetails?.paperSizeName || `${w} × ${h} px`,
+        width: widthMm,
+        height: heightMm,
         unit: 'mm',
         pxWidth: w,
         pxHeight: h,

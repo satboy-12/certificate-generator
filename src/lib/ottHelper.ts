@@ -6,6 +6,8 @@ export interface OttConversionResult {
   dataUrl: string;
   width: number;
   height: number;
+  widthMm: number;
+  heightMm: number;
   orientation: 'landscape' | 'portrait';
   paperSizeName: string;
   elements: CanvasElement[];
@@ -152,28 +154,17 @@ export async function convertOttToImageDataUrl(file: File): Promise<OttConversio
         if (orientationAttr) {
           orientation = orientationAttr.toLowerCase() === 'portrait' ? 'portrait' : 'landscape';
         } else {
-          orientation = docWidth > docHeight ? 'landscape' : 'portrait';
-        }
-
-        // Standardize dimensions if close to A4
-        if (orientation === 'landscape') {
-          paperSizeName = 'A4 Landscape (297 × 210 mm) - OTT';
-          if (docWidth < 1000) {
-            docWidth = 1123;
-            docHeight = 794;
-          }
-        } else {
-          paperSizeName = 'A4 Portrait (210 × 297 mm) - OTT';
-          if (docHeight < 1000) {
-            docWidth = 794;
-            docHeight = 1123;
-          }
+          orientation = docWidth >= docHeight ? 'landscape' : 'portrait';
         }
       }
     } catch (e) {
       console.warn('Failed to parse styles.xml:', e);
     }
   }
+
+  const widthMm = Number(((docWidth * 25.4) / 96).toFixed(2));
+  const heightMm = Number(((docHeight * 25.4) / 96).toFixed(2));
+  paperSizeName = `${widthMm} × ${heightMm} mm (Exact OTT Template)`;
 
   // 4. Parse content.xml for text, headings, and dynamic fields
   const extractedTextLines: string[] = [];
@@ -318,6 +309,8 @@ export async function convertOttToImageDataUrl(file: File): Promise<OttConversio
     dataUrl: finalDataUrl,
     width: docWidth,
     height: docHeight,
+    widthMm,
+    heightMm,
     orientation,
     paperSizeName,
     elements: [defaultNameElement],
