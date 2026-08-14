@@ -140,9 +140,9 @@ export const BulkGeneratorModal: React.FC<BulkGeneratorModalProps> = ({
         }));
       }
 
-      // Small delay to allow UI progress bar updates
-      if (i % 5 === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 15));
+      // Fast non-blocking UI update
+      if (i % 20 === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
 

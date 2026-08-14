@@ -270,6 +270,8 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
   });
 
   const [generatedCerts, setGeneratedCerts] = useState<GeneratedCertificate[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<{ current: number; total: number; label: string } | null>(null);
 
   // Preview & Editing modals
   const [previewCert, setPreviewCert] = useState<GeneratedCertificate | null>(null);
@@ -507,7 +509,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     }
   }, [step, templateElements, rows, selectedNameCol]);
 
-  // 4. Start Sequential Ordered Bulk Generation
+  // 4. High-Speed Sequential Ordered Bulk Generation
   const handleStartGeneration = async () => {
     if (rows.length === 0) return;
 
@@ -531,38 +533,42 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     onSaveDataset(newDataset);
 
     const generatedList: GeneratedCertificate[] = [];
+    const BATCH_SIZE = 10;
 
-    for (let i = 0; i < total; i++) {
-      const row = rows[i];
-      const recipientName = row[selectedNameCol] || `Recipient ${i + 1}`;
-      const certSeqNum = String(i + 1).padStart(4, '0');
-      const certNumber = `SSWR/2026/${certSeqNum}`;
+    for (let i = 0; i < total; i += BATCH_SIZE) {
+      const end = Math.min(i + BATCH_SIZE, total);
+      for (let j = i; j < end; j++) {
+        const row = rows[j];
+        const recipientName = row[selectedNameCol] || `Recipient ${j + 1}`;
+        const certSeqNum = String(j + 1).padStart(4, '0');
+        const certNumber = `SSWR/2026/${certSeqNum}`;
 
-      const rowData: Record<string, string> = { ...row, NAME: recipientName };
+        const rowData: Record<string, string> = { ...row, NAME: recipientName };
 
-      const certObj: GeneratedCertificate = {
-        id: `cert_${Date.now()}_${i + 1}`,
-        projectId: currentProject.id,
-        templateId: activeTpl.id,
-        certificateNumber: certNumber,
-        recipientName,
-        data: rowData,
-        status: 'generated',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+        const certObj: GeneratedCertificate = {
+          id: `cert_${Date.now()}_${j + 1}`,
+          projectId: currentProject.id,
+          templateId: activeTpl.id,
+          certificateNumber: certNumber,
+          recipientName,
+          data: rowData,
+          status: 'generated',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
-      generatedList.push(certObj);
+        generatedList.push(certObj);
+      }
 
       setGenProgress({
-        current: i + 1,
+        current: end,
         total,
-        currentName: recipientName,
-        isFinished: i + 1 === total,
+        currentName: rows[end - 1][selectedNameCol] || '',
+        isFinished: end === total,
       });
 
-      // Brief delay so progress bar updates smoothly
-      await new Promise((r) => setTimeout(r, 40));
+      // Micro-yield to update progress bar without lagging
+      await new Promise((r) => setTimeout(r, 4));
     }
 
     setGeneratedCerts(generatedList);
@@ -591,34 +597,60 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     setRows(rows.filter((r) => r._rowId !== rowId));
   };
 
-  // Download ZIP with filenames preserving Excel order
+  // High-Speed Download ZIP with filenames preserving Excel order
   const handleDownloadZip = async () => {
-    if (generatedCerts.length === 0) return;
+    if (generatedCerts.length === 0 || isExporting) return;
+    setIsExporting(true);
+    setExportProgress({ current: 0, total: generatedCerts.length, label: 'Rendering PDF Certificates...' });
 
-    const activeTpl = buildActiveTemplateObject();
-    const zip = new JSZip();
-    const folder = zip.folder('Certificates');
-
-    for (let i = 0; i < generatedCerts.length; i++) {
-      const cert = generatedCerts[i];
-      const rowNumStr = String(i + 1).padStart(3, '0');
-      const safeName = cert.recipientName.replace(/[^a-zA-Z0-9]/g, '-');
-      const filename = `${rowNumStr}-${safeName}.pdf`;
-
-      const { doc } = await createPdfFromTemplate(
+    try {
+      const activeTpl = buildActiveTemplateObject();
+      await downloadCertificatesZip(
         activeTpl,
-        cert.data,
-        cert.certificateNumber,
+        generatedCerts,
         branding,
-        cert.customElementsOverridden
+        (curr, tot) => {
+          setExportProgress({
+            current: curr,
+            total: tot,
+            label: `Rendering Certificates (${curr}/${tot})...`,
+          });
+        }
       );
-
-      const arrayBuffer = doc.output('arraybuffer');
-      folder?.file(filename, arrayBuffer);
+    } catch (err) {
+      console.error('Failed to export ZIP:', err);
+    } finally {
+      setIsExporting(false);
+      setExportProgress(null);
     }
+  };
 
-    const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, `${currentProject.name}_Certificates_${Date.now()}.zip`);
+  // High-Speed Download Combined Multi-Page PDF
+  const handleDownloadCombined = async () => {
+    if (generatedCerts.length === 0 || isExporting) return;
+    setIsExporting(true);
+    setExportProgress({ current: 0, total: generatedCerts.length, label: 'Compiling Combined Multi-Page PDF...' });
+
+    try {
+      const activeTpl = buildActiveTemplateObject();
+      await downloadCombinedPdf(
+        activeTpl,
+        generatedCerts,
+        branding,
+        (curr, tot) => {
+          setExportProgress({
+            current: curr,
+            total: tot,
+            label: `Compiling Certificate Pages (${curr}/${tot})...`,
+          });
+        }
+      );
+    } catch (err) {
+      console.error('Failed to export combined PDF:', err);
+    } finally {
+      setIsExporting(false);
+      setExportProgress(null);
+    }
   };
 
   // Filtered rows for View Names step
@@ -1657,18 +1689,17 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                 <span>Back to Recipient List</span>
               </button>
               <button
-                onClick={() => {
-                  const activeTpl = buildActiveTemplateObject();
-                  downloadCombinedPdf(activeTpl, generatedCerts, branding);
-                }}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5"
+                onClick={handleDownloadCombined}
+                disabled={isExporting}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Download All (Combined PDF)</span>
               </button>
               <button
                 onClick={handleDownloadZip}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5"
+                disabled={isExporting}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center space-x-1.5"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Download ZIP</span>
@@ -1786,6 +1817,34 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
               >
                 Download PDF
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Export Progress Modal Overlay */}
+      {isExporting && exportProgress && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-200 text-center">
+            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+              <RefreshCw className="w-6 h-6 animate-spin" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">{exportProgress.label}</h3>
+              <p className="text-xs text-slate-500 mt-1">High-speed hardware-accelerated rendering</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-bold text-slate-700">
+                <span>Completed:</span>
+                <span>
+                  {exportProgress.current} / {exportProgress.total} ({((exportProgress.current / (exportProgress.total || 1)) * 100).toFixed(0)}%)
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                <div
+                  className="bg-blue-600 h-full rounded-full transition-all duration-100"
+                  style={{ width: `${(exportProgress.current / (exportProgress.total || 1)) * 100}%` }}
+                />
+              </div>
             </div>
           </div>
         </div>

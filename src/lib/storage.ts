@@ -5,7 +5,6 @@ import {
   GeneratedCertificate,
   BrandingSettings,
   UserProfile,
-  CertificateSize,
 } from '../types';
 import {
   STANDARD_SIZES,
@@ -25,18 +24,226 @@ const KEYS = {
   USER: 'bsr_ss_user_v4',
 };
 
-// Seed initial default data if local storage is empty
-export function initializeStorageIfNeeded(): void {
-  try {
-    const existingProjects = localStorage.getItem(KEYS.PROJECTS);
-    if (!existingProjects) {
-      seedDefaultData();
+// ==========================================
+// IN-MEMORY RUNTIME CACHE
+// Ensures lightning-fast synchronous operations & protects against localStorage quota crashes
+// ==========================================
+let cachedProjects: Project[] | null = null;
+let cachedTemplates: CertificateTemplate[] | null = null;
+let cachedDatasets: Dataset[] | null = null;
+let cachedCertificates: GeneratedCertificate[] | null = null;
+let cachedBranding: BrandingSettings | null = null;
+let cachedUser: UserProfile | null = null;
+let isStorageInitialized = false;
+
+// ==========================================
+// INDEXEDDB DURABLE STORAGE LAYER
+// Provides virtually unlimited offline storage for large templates, SVGs, and bulk certificates
+// ==========================================
+const IDB_NAME = 'bsr_certificate_db_v4';
+const IDB_VERSION = 1;
+const IDB_STORES = {
+  PROJECTS: 'projects',
+  TEMPLATES: 'templates',
+  DATASETS: 'datasets',
+  CERTIFICATES: 'certificates',
+  META: 'meta',
+};
+
+let idbInstance: IDBDatabase | null = null;
+let idbPromise: Promise<IDBDatabase | null> | null = null;
+
+function getIDB(): Promise<IDBDatabase | null> {
+  if (typeof window === 'undefined' || !window.indexedDB) {
+    return Promise.resolve(null);
+  }
+  if (idbInstance) {
+    return Promise.resolve(idbInstance);
+  }
+  if (idbPromise) {
+    return idbPromise;
+  }
+
+  idbPromise = new Promise((resolve) => {
+    try {
+      const request = indexedDB.open(IDB_NAME, IDB_VERSION);
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains(IDB_STORES.PROJECTS)) {
+          db.createObjectStore(IDB_STORES.PROJECTS, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(IDB_STORES.TEMPLATES)) {
+          db.createObjectStore(IDB_STORES.TEMPLATES, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(IDB_STORES.DATASETS)) {
+          db.createObjectStore(IDB_STORES.DATASETS, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(IDB_STORES.CERTIFICATES)) {
+          db.createObjectStore(IDB_STORES.CERTIFICATES, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(IDB_STORES.META)) {
+          db.createObjectStore(IDB_STORES.META);
+        }
+      };
+
+      request.onsuccess = (event) => {
+        idbInstance = (event.target as IDBOpenDBRequest).result;
+        resolve(idbInstance);
+      };
+
+      request.onerror = () => {
+        console.warn('[Storage] IndexedDB open failed, using safe memory + localStorage fallback.');
+        resolve(null);
+      };
+    } catch (e) {
+      console.warn('[Storage] IndexedDB initialization error:', e);
+      resolve(null);
     }
-  } catch (e) {
-    console.error('Failed to initialize local storage:', e);
+  });
+
+  return idbPromise;
+}
+
+// Background asynchronous synchronization to IndexedDB
+async function persistItemToIDB(storeName: string, item: any): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (!db) return;
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.put(item);
+  } catch (err) {
+    // Non-blocking background sync
   }
 }
 
+async function persistBatchToIDB(storeName: string, items: any[]): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (!db) return;
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    for (const item of items) {
+      store.put(item);
+    }
+  } catch (err) {
+    // Non-blocking background sync
+  }
+}
+
+async function deleteItemFromIDB(storeName: string, key: string): Promise<void> {
+  try {
+    const db = await getIDB();
+    if (!db) return;
+    const tx = db.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.delete(key);
+  } catch (err) {
+    // Non-blocking
+  }
+}
+
+// ==========================================
+// SAFE LOCALSTORAGE WRAPPERS (QUOTA PROTECTION)
+// ==========================================
+
+function cleanupLegacyStorage(): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    const legacyKeys = [
+      'bsr_ss_projects_v1', 'bsr_ss_projects_v2', 'bsr_ss_projects_v3',
+      'bsr_ss_templates_v1', 'bsr_ss_templates_v2', 'bsr_ss_templates_v3',
+      'bsr_ss_datasets_v1', 'bsr_ss_datasets_v2', 'bsr_ss_datasets_v3',
+      'bsr_ss_certificates_v1', 'bsr_ss_certificates_v2', 'bsr_ss_certificates_v3',
+      'bsr_ss_branding_v1', 'bsr_ss_branding_v2', 'bsr_ss_branding_v3',
+    ];
+
+    for (const key of legacyKeys) {
+      try {
+        localStorage.removeItem(key);
+      } catch (e) {}
+    }
+
+    // Clean any oversized temporary keys
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('temp_') || k.includes('cache_') || k.includes('preview_'))) {
+        try {
+          localStorage.removeItem(k);
+        } catch (e) {}
+      }
+    }
+  } catch (e) {
+    // Ignore
+  }
+}
+
+function safeLocalStorageGet<T>(key: string, fallback: T): T {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return fallback;
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function safeLocalStorageSet(key: string, value: any): boolean {
+  if (typeof window === 'undefined' || !window.localStorage) return false;
+  try {
+    const jsonStr = typeof value === 'string' ? value : JSON.stringify(value);
+    localStorage.setItem(key, jsonStr);
+    return true;
+  } catch (err: any) {
+    // Quota exceeded recovery
+    cleanupLegacyStorage();
+    try {
+      const jsonStr = typeof value === 'string' ? value : JSON.stringify(value);
+      localStorage.setItem(key, jsonStr);
+      return true;
+    } catch (retryErr) {
+      // If template array is large due to SVG/base64 data, store a lightweight version in localStorage
+      // Complete full-fidelity objects are safely preserved in-memory and in IndexedDB
+      if (key === KEYS.TEMPLATES && Array.isArray(value)) {
+        try {
+          const lightweight = value.map((t: CertificateTemplate) => {
+            if (t.backgroundUrl && t.backgroundUrl.length > 5000) {
+              return {
+                ...t,
+                backgroundUrl: t.backgroundUrl.startsWith('data:') ? undefined : t.backgroundUrl,
+              };
+            }
+            return t;
+          });
+          localStorage.setItem(key, JSON.stringify(lightweight));
+          return true;
+        } catch (e3) {
+          // If still exceeded, clear the key in localStorage; in-memory cache & IndexedDB maintain full data
+          try {
+            localStorage.removeItem(key);
+          } catch (e4) {}
+        }
+      } else if (key === KEYS.CERTIFICATES && Array.isArray(value)) {
+        try {
+          // Keep only the most recent 15 certificates in localStorage
+          const subset = value.slice(0, 15);
+          localStorage.setItem(key, JSON.stringify(subset));
+          return true;
+        } catch (e5) {
+          try {
+            localStorage.removeItem(key);
+          } catch (e6) {}
+        }
+      }
+      return false;
+    }
+  }
+}
+
+// ==========================================
+// SEED INITIAL DEFAULT DATA
+// ==========================================
 function seedDefaultData(): void {
   const now = new Date().toISOString();
 
@@ -48,13 +255,14 @@ function seedDefaultData(): void {
     role: 'admin',
     organization: 'BSROCKS × SeventhSense',
   };
-  localStorage.setItem(KEYS.USER, JSON.stringify(defaultUser));
+  cachedUser = defaultUser;
+  safeLocalStorageSet(KEYS.USER, defaultUser);
 
   // Initial branding
-  localStorage.setItem(KEYS.BRANDING, JSON.stringify(DEFAULT_BRANDING));
+  cachedBranding = DEFAULT_BRANDING;
+  safeLocalStorageSet(KEYS.BRANDING, DEFAULT_BRANDING);
 
   const sizePortraitA4 = STANDARD_SIZES.A4_PORTRAIT;
-  const sizeLandscapeA4 = STANDARD_SIZES.A4_LANDSCAPE;
 
   // ==========================================
   // PROJECT 1: VANDE BHARATAM 2026 (Seventh Sense World Records)
@@ -278,48 +486,136 @@ function seedDefaultData(): void {
     updatedAt: now,
   };
 
-  localStorage.setItem(KEYS.PROJECTS, JSON.stringify([projectVandeBharatam, projectNailathon]));
-  localStorage.setItem(KEYS.TEMPLATES, JSON.stringify([templateVandeBharatam, templateNailathon]));
-  localStorage.setItem(KEYS.DATASETS, JSON.stringify([dataset1]));
-  localStorage.setItem(KEYS.CERTIFICATES, JSON.stringify([...vandeBharatamCerts, ...nailathonCerts]));
+  const allProjects = [projectVandeBharatam, projectNailathon];
+  const allTemplates = [templateVandeBharatam, templateNailathon];
+  const allDatasets = [dataset1];
+  const allCertificates = [...vandeBharatamCerts, ...nailathonCerts];
+
+  cachedProjects = allProjects;
+  cachedTemplates = allTemplates;
+  cachedDatasets = allDatasets;
+  cachedCertificates = allCertificates;
+
+  safeLocalStorageSet(KEYS.PROJECTS, allProjects);
+  safeLocalStorageSet(KEYS.TEMPLATES, allTemplates);
+  safeLocalStorageSet(KEYS.DATASETS, allDatasets);
+  safeLocalStorageSet(KEYS.CERTIFICATES, allCertificates);
+
+  // Background IndexedDB sync
+  persistBatchToIDB(IDB_STORES.PROJECTS, allProjects);
+  persistBatchToIDB(IDB_STORES.TEMPLATES, allTemplates);
+  persistBatchToIDB(IDB_STORES.DATASETS, allDatasets);
+  persistBatchToIDB(IDB_STORES.CERTIFICATES, allCertificates);
+}
+
+// Seed initial default data if local storage / memory is empty
+export function initializeStorageIfNeeded(): void {
+  if (isStorageInitialized && cachedProjects !== null) {
+    return;
+  }
+
+  try {
+    cleanupLegacyStorage();
+
+    const existingProjects = safeLocalStorageGet<Project[] | null>(KEYS.PROJECTS, null);
+    if (!existingProjects || existingProjects.length === 0) {
+      seedDefaultData();
+    } else {
+      cachedProjects = existingProjects;
+      cachedTemplates = safeLocalStorageGet<CertificateTemplate[]>(KEYS.TEMPLATES, []);
+      cachedDatasets = safeLocalStorageGet<Dataset[]>(KEYS.DATASETS, []);
+      cachedCertificates = safeLocalStorageGet<GeneratedCertificate[]>(KEYS.CERTIFICATES, []);
+      cachedBranding = safeLocalStorageGet<BrandingSettings>(KEYS.BRANDING, DEFAULT_BRANDING);
+      cachedUser = safeLocalStorageGet<UserProfile>(KEYS.USER, {
+        id: 'usr_admin_01',
+        email: 'admin@bsrocks.com',
+        displayName: 'Sathya Sai (Admin)',
+        role: 'admin',
+        organization: 'BSROCKS × SeventhSense',
+      });
+    }
+
+    isStorageInitialized = true;
+
+    // Asynchronously load full-fidelity objects from IndexedDB if available
+    getIDB().then(async (db) => {
+      if (!db) return;
+      try {
+        const tx = db.transaction(
+          [IDB_STORES.PROJECTS, IDB_STORES.TEMPLATES, IDB_STORES.DATASETS, IDB_STORES.CERTIFICATES],
+          'readonly'
+        );
+
+        const idbTemplatesReq = tx.objectStore(IDB_STORES.TEMPLATES).getAll();
+        idbTemplatesReq.onsuccess = () => {
+          if (idbTemplatesReq.result && idbTemplatesReq.result.length > 0) {
+            // Merge with in-memory templates to restore full backgroundUrls
+            const idbMap = new Map(idbTemplatesReq.result.map((t: CertificateTemplate) => [t.id, t]));
+            if (cachedTemplates) {
+              cachedTemplates = cachedTemplates.map((t) => idbMap.get(t.id) || t);
+              // Also add any templates present in IDB but not in cache
+              for (const [id, tpl] of idbMap.entries()) {
+                if (!cachedTemplates.some((t) => t.id === id)) {
+                  cachedTemplates.push(tpl);
+                }
+              }
+            } else {
+              cachedTemplates = idbTemplatesReq.result;
+            }
+          }
+        };
+      } catch (err) {
+        // Safe fallback
+      }
+    });
+  } catch (e) {
+    console.warn('[Storage] Safe init triggered fallback:', e);
+    if (!cachedProjects) {
+      seedDefaultData();
+    }
+  }
 }
 
 // === STORAGE API METHODS ===
 
 export function getCurrentUser(): UserProfile {
   initializeStorageIfNeeded();
-  const raw = localStorage.getItem(KEYS.USER);
-  if (!raw) {
-    return {
-      id: 'usr_default',
-      email: 'staff@bsrocks.com',
-      displayName: 'Staff Member',
-      role: 'staff',
-      organization: 'BSROCKS × SeventhSense',
-    };
-  }
-  return JSON.parse(raw);
+  if (cachedUser) return cachedUser;
+  const user = safeLocalStorageGet<UserProfile>(KEYS.USER, {
+    id: 'usr_default',
+    email: 'staff@bsrocks.com',
+    displayName: 'Staff Member',
+    role: 'staff',
+    organization: 'BSROCKS × SeventhSense',
+  });
+  cachedUser = user;
+  return user;
 }
 
 export function saveCurrentUser(user: UserProfile): void {
-  localStorage.setItem(KEYS.USER, JSON.stringify(user));
+  cachedUser = user;
+  safeLocalStorageSet(KEYS.USER, user);
 }
 
 export function getBrandingSettings(): BrandingSettings {
   initializeStorageIfNeeded();
-  const raw = localStorage.getItem(KEYS.BRANDING);
-  if (!raw) return DEFAULT_BRANDING;
-  return { ...DEFAULT_BRANDING, ...JSON.parse(raw) };
+  if (cachedBranding) return cachedBranding;
+  const raw = safeLocalStorageGet<BrandingSettings>(KEYS.BRANDING, DEFAULT_BRANDING);
+  cachedBranding = { ...DEFAULT_BRANDING, ...raw };
+  return cachedBranding;
 }
 
 export function saveBrandingSettings(settings: BrandingSettings): void {
-  localStorage.setItem(KEYS.BRANDING, JSON.stringify(settings));
+  cachedBranding = settings;
+  safeLocalStorageSet(KEYS.BRANDING, settings);
 }
 
 export function getProjects(): Project[] {
   initializeStorageIfNeeded();
-  const raw = localStorage.getItem(KEYS.PROJECTS);
-  return raw ? JSON.parse(raw) : [];
+  if (cachedProjects) return cachedProjects;
+  const projects = safeLocalStorageGet<Project[]>(KEYS.PROJECTS, []);
+  cachedProjects = projects;
+  return projects;
 }
 
 export function getProjectById(id: string): Project | undefined {
@@ -327,35 +623,49 @@ export function getProjectById(id: string): Project | undefined {
 }
 
 export function saveProject(project: Project): void {
-  const projects = getProjects();
+  initializeStorageIfNeeded();
+  const projects = [...getProjects()];
   const index = projects.findIndex((p) => p.id === project.id);
+  const updatedProject = { ...project, updatedAt: new Date().toISOString() };
+
   if (index >= 0) {
-    projects[index] = { ...project, updatedAt: new Date().toISOString() };
+    projects[index] = updatedProject;
   } else {
-    projects.unshift(project);
+    projects.unshift(updatedProject);
   }
-  localStorage.setItem(KEYS.PROJECTS, JSON.stringify(projects));
+
+  cachedProjects = projects;
+  safeLocalStorageSet(KEYS.PROJECTS, projects);
+  persistItemToIDB(IDB_STORES.PROJECTS, updatedProject);
 }
 
 export function deleteProject(id: string): void {
+  initializeStorageIfNeeded();
   const projects = getProjects().filter((p) => p.id !== id);
-  localStorage.setItem(KEYS.PROJECTS, JSON.stringify(projects));
+  cachedProjects = projects;
+  safeLocalStorageSet(KEYS.PROJECTS, projects);
+  deleteItemFromIDB(IDB_STORES.PROJECTS, id);
 
   // Clean up associated templates, datasets, certificates
   const templates = getTemplates().filter((t) => t.projectId !== id);
-  localStorage.setItem(KEYS.TEMPLATES, JSON.stringify(templates));
+  cachedTemplates = templates;
+  safeLocalStorageSet(KEYS.TEMPLATES, templates);
 
   const datasets = getDatasets().filter((d) => d.projectId !== id);
-  localStorage.setItem(KEYS.DATASETS, JSON.stringify(datasets));
+  cachedDatasets = datasets;
+  safeLocalStorageSet(KEYS.DATASETS, datasets);
 
   const certificates = getCertificates().filter((c) => c.projectId !== id);
-  localStorage.setItem(KEYS.CERTIFICATES, JSON.stringify(certificates));
+  cachedCertificates = certificates;
+  safeLocalStorageSet(KEYS.CERTIFICATES, certificates);
 }
 
 export function getTemplates(): CertificateTemplate[] {
   initializeStorageIfNeeded();
-  const raw = localStorage.getItem(KEYS.TEMPLATES);
-  return raw ? JSON.parse(raw) : [];
+  if (cachedTemplates) return cachedTemplates;
+  const templates = safeLocalStorageGet<CertificateTemplate[]>(KEYS.TEMPLATES, []);
+  cachedTemplates = templates;
+  return templates;
 }
 
 export function getTemplatesForProject(projectId: string): CertificateTemplate[] {
@@ -367,25 +677,36 @@ export function getTemplateById(id: string): CertificateTemplate | undefined {
 }
 
 export function saveTemplate(template: CertificateTemplate): void {
-  const templates = getTemplates();
+  initializeStorageIfNeeded();
+  const templates = [...getTemplates()];
   const index = templates.findIndex((t) => t.id === template.id);
+  const updatedTemplate = { ...template, updatedAt: new Date().toISOString() };
+
   if (index >= 0) {
-    templates[index] = { ...template, updatedAt: new Date().toISOString() };
+    templates[index] = updatedTemplate;
   } else {
-    templates.push(template);
+    templates.push(updatedTemplate);
   }
-  localStorage.setItem(KEYS.TEMPLATES, JSON.stringify(templates));
+
+  cachedTemplates = templates;
+  safeLocalStorageSet(KEYS.TEMPLATES, templates);
+  persistItemToIDB(IDB_STORES.TEMPLATES, updatedTemplate);
 }
 
 export function deleteTemplate(id: string): void {
+  initializeStorageIfNeeded();
   const templates = getTemplates().filter((t) => t.id !== id);
-  localStorage.setItem(KEYS.TEMPLATES, JSON.stringify(templates));
+  cachedTemplates = templates;
+  safeLocalStorageSet(KEYS.TEMPLATES, templates);
+  deleteItemFromIDB(IDB_STORES.TEMPLATES, id);
 }
 
 export function getDatasets(): Dataset[] {
   initializeStorageIfNeeded();
-  const raw = localStorage.getItem(KEYS.DATASETS);
-  return raw ? JSON.parse(raw) : [];
+  if (cachedDatasets) return cachedDatasets;
+  const datasets = safeLocalStorageGet<Dataset[]>(KEYS.DATASETS, []);
+  cachedDatasets = datasets;
+  return datasets;
 }
 
 export function getDatasetById(id: string): Dataset | undefined {
@@ -397,20 +718,27 @@ export function getDatasetForProject(projectId: string): Dataset | undefined {
 }
 
 export function saveDataset(dataset: Dataset): void {
-  const datasets = getDatasets();
+  initializeStorageIfNeeded();
+  const datasets = [...getDatasets()];
   const index = datasets.findIndex((d) => d.id === dataset.id);
+
   if (index >= 0) {
     datasets[index] = dataset;
   } else {
     datasets.unshift(dataset);
   }
-  localStorage.setItem(KEYS.DATASETS, JSON.stringify(datasets));
+
+  cachedDatasets = datasets;
+  safeLocalStorageSet(KEYS.DATASETS, datasets);
+  persistItemToIDB(IDB_STORES.DATASETS, dataset);
 }
 
 export function getCertificates(): GeneratedCertificate[] {
   initializeStorageIfNeeded();
-  const raw = localStorage.getItem(KEYS.CERTIFICATES);
-  return raw ? JSON.parse(raw) : [];
+  if (cachedCertificates) return cachedCertificates;
+  const certs = safeLocalStorageGet<GeneratedCertificate[]>(KEYS.CERTIFICATES, []);
+  cachedCertificates = certs;
+  return certs;
 }
 
 export function getCertificatesForProject(projectId: string): GeneratedCertificate[] {
@@ -422,17 +750,24 @@ export function getCertificateById(id: string): GeneratedCertificate | undefined
 }
 
 export function saveCertificate(cert: GeneratedCertificate): void {
-  const certs = getCertificates();
+  initializeStorageIfNeeded();
+  const certs = [...getCertificates()];
   const index = certs.findIndex((c) => c.id === cert.id);
+  const updatedCert = { ...cert, updatedAt: new Date().toISOString() };
+
   if (index >= 0) {
-    certs[index] = { ...cert, updatedAt: new Date().toISOString() };
+    certs[index] = updatedCert;
   } else {
-    certs.unshift(cert);
+    certs.unshift(updatedCert);
   }
-  localStorage.setItem(KEYS.CERTIFICATES, JSON.stringify(certs));
+
+  cachedCertificates = certs;
+  safeLocalStorageSet(KEYS.CERTIFICATES, certs);
+  persistItemToIDB(IDB_STORES.CERTIFICATES, updatedCert);
 }
 
 export function saveBulkCertificates(newCerts: GeneratedCertificate[]): void {
+  initializeStorageIfNeeded();
   const certs = getCertificates();
   const existingMap = new Map(certs.map((c) => [c.id, c]));
 
@@ -441,7 +776,9 @@ export function saveBulkCertificates(newCerts: GeneratedCertificate[]): void {
   }
 
   const updatedArray = Array.from(existingMap.values());
-  localStorage.setItem(KEYS.CERTIFICATES, JSON.stringify(updatedArray));
+  cachedCertificates = updatedArray;
+  safeLocalStorageSet(KEYS.CERTIFICATES, updatedArray);
+  persistBatchToIDB(IDB_STORES.CERTIFICATES, newCerts);
 }
 
 export function updateCertificateStatus(certId: string, status: GeneratedCertificate['status']): void {
@@ -456,6 +793,9 @@ export function updateCertificateStatus(certId: string, status: GeneratedCertifi
 }
 
 export function deleteCertificate(id: string): void {
+  initializeStorageIfNeeded();
   const certs = getCertificates().filter((c) => c.id !== id);
-  localStorage.setItem(KEYS.CERTIFICATES, JSON.stringify(certs));
+  cachedCertificates = certs;
+  safeLocalStorageSet(KEYS.CERTIFICATES, certs);
+  deleteItemFromIDB(IDB_STORES.CERTIFICATES, id);
 }
