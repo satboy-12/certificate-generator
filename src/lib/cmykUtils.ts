@@ -175,43 +175,16 @@ export function formatCmykDisplay(cmyk: CmykColor): string {
 }
 
 /**
- * Strictly clamps any color into CMYK color space and returns screen-accurate RGB representation
+ * Preserves exact RGB/Hex/CMYK color string without altering or distorting original colors
  */
 export function enforceCmykGamut(colorStr: string): string {
-  if (!colorStr || colorStr === 'transparent') return colorStr;
-  const rgb = parseColorToRgb(colorStr);
-  const cmyk = rgbToCmyk(rgb.r, rgb.g, rgb.b);
-  return cmykToHex(cmyk);
+  if (!colorStr) return '#0e1838';
+  return colorStr;
 }
 
 /**
- * Applies CMYK color transformation across canvas pixel data to guarantee 100% CMYK gamut compliance
+ * Pure color passthrough to preserve 100% uploaded template pixel and color fidelity
  */
 export function applyCmykGamutToCanvasContext(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  try {
-    const imgData = ctx.getImageData(0, 0, width, height);
-    const data = imgData.data;
-    const len = data.length;
-
-    for (let i = 0; i < len; i += 4) {
-      const alpha = data[i + 3];
-      if (alpha === 0) continue;
-
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-
-      const cmyk = rgbToCmyk(r, g, b);
-      const clampedRgb = cmykToRgb(cmyk);
-
-      data[i] = clampedRgb.r;
-      data[i + 1] = clampedRgb.g;
-      data[i + 2] = clampedRgb.b;
-    }
-
-    ctx.putImageData(imgData, 0, 0);
-  } catch (err) {
-    // Cross-origin image fallback
-    console.warn('Canvas CMYK pixel conversion skipped due to CORS:', err);
-  }
+  // Retains original colors 100% untouched
 }

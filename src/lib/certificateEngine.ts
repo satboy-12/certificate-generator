@@ -130,7 +130,7 @@ export async function createStaticLayerCanvas(
   if (!ctx) return canvas;
 
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = enforceCmykGamut(template.backgroundColor || '#ffffff');
+  ctx.fillStyle = template.backgroundColor || '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
   if (template.backgroundUrl) {
@@ -158,8 +158,8 @@ export async function createStaticLayerCanvas(
     }
 
     if (el.type === 'shape') {
-      ctx.fillStyle = el.fillColor && el.fillColor !== 'transparent' ? enforceCmykGamut(el.fillColor) : 'transparent';
-      ctx.strokeStyle = enforceCmykGamut(el.strokeColor || '#000000');
+      ctx.fillStyle = el.fillColor && el.fillColor !== 'transparent' ? el.fillColor : 'transparent';
+      ctx.strokeStyle = el.strokeColor || '#000000';
       ctx.lineWidth = el.strokeWidth || 1;
 
       if (el.borderRadius && el.borderRadius > 0) {
@@ -176,7 +176,7 @@ export async function createStaticLayerCanvas(
         }
       }
     } else if (el.type === 'line') {
-      ctx.strokeStyle = enforceCmykGamut(el.strokeColor || '#000000');
+      ctx.strokeStyle = el.strokeColor || '#000000';
       ctx.lineWidth = el.strokeWidth || 1;
       ctx.beginPath();
       ctx.moveTo(el.x, el.y);
@@ -204,7 +204,7 @@ export async function createStaticLayerCanvas(
       const fontSize = autoFit.fontSize;
 
       ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}", "Bebas Kai", "Bebas Neue", sans-serif`;
-      ctx.fillStyle = enforceCmykGamut(el.color || '#0e1838');
+      ctx.fillStyle = el.color || '#0e1838';
       ctx.textAlign = (el.align === 'center' || el.align === 'right' ? el.align : 'left') as CanvasTextAlign;
       ctx.textBaseline = 'top';
 
@@ -320,7 +320,7 @@ async function renderDynamicElements(
       const fontSize = autoFit.fontSize;
 
       ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}", "Bebas Kai", "Bebas Neue", sans-serif`;
-      ctx.fillStyle = enforceCmykGamut(el.color || '#0e1838');
+      ctx.fillStyle = el.color || '#0e1838';
 
       // Enforce center alignment on dynamic fields or when specified
       const align = (el.type === 'dynamic_field' ? (el.align || 'center') : (el.align || 'left')) as CanvasTextAlign;
@@ -454,8 +454,8 @@ export async function createPdfFromTemplate(
     compress: true,
   });
 
-  const imgData = offscreenCanvas.toDataURL('image/jpeg', 0.95);
-  pdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
+  const imgData = offscreenCanvas.toDataURL('image/png');
+  pdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
 
   const safeRecipient = (data['NAME'] || data['Name'] || 'Certificate').replace(/[^a-zA-Z0-9_-]/g, '_');
   const filename = `${certNumber}_${safeRecipient}.pdf`;
@@ -524,8 +524,8 @@ export async function downloadCombinedPdf(
       staticCanvas
     );
 
-    const imgData = offscreenCanvas.toDataURL('image/jpeg', 0.92);
-    combinedPdf.addImage(imgData, 'JPEG', 0, 0, widthMm, heightMm);
+    const imgData = offscreenCanvas.toDataURL('image/png');
+    combinedPdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
 
     if (onProgress && (i % 2 === 0 || i === certificates.length - 1)) {
       onProgress(i + 1, certificates.length);
