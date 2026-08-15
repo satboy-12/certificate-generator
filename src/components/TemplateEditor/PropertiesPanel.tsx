@@ -18,6 +18,7 @@ import {
   RotateCw,
 } from 'lucide-react';
 import { CanvasElement } from '../../types';
+import { CmykColorController } from '../CmykColorController';
 
 interface PropertiesPanelProps {
   selectedElement: CanvasElement | null;
@@ -234,6 +235,14 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               </div>
             </div>
 
+            {/* CMYK Print Color Controller */}
+            <div className="pt-1">
+              <CmykColorController
+                color={selectedElement.color || '#0e1838'}
+                onChange={(newHex) => onUpdateElement({ color: newHex })}
+              />
+            </div>
+
             {/* Dynamic Text-Resizing Helper Controls */}
             <div className="p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-xl space-y-2">
               <div className="flex items-center justify-between">
@@ -340,6 +349,14 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   />
                 </div>
               )}
+            </div>
+
+            <div className="pt-1">
+              <CmykColorController
+                label="FILL CMYK COLOR"
+                color={selectedElement.fillColor || '#ffffff'}
+                onChange={(newHex) => onUpdateElement({ fillColor: newHex })}
+              />
             </div>
           </div>
         )}

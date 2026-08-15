@@ -58,6 +58,7 @@ import {
   enforceCmykGamut,
   CmykColor,
 } from '../lib/cmykUtils';
+import { CmykColorController } from './CmykColorController';
 import {
   createStyledDynamicField,
   createStyledTextElement,
@@ -664,8 +665,9 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           });
         }
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to export ZIP:', err);
+      alert('Failed to generate ZIP archive: ' + (err?.message || 'Unknown error. Please try again.'));
     } finally {
       setIsExporting(false);
       setExportProgress(null);
@@ -692,8 +694,9 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
           });
         }
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to export combined PDF:', err);
+      alert('Failed to generate combined PDF: ' + (err?.message || 'Unknown error. Please try again.'));
     } finally {
       setIsExporting(false);
       setExportProgress(null);
@@ -1272,143 +1275,10 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                   </div>
 
                   {/* CMYK COLOR CONTROLLER (COMMERCIAL PRINT ONLY) */}
-                  <div className="p-3 bg-slate-950/70 rounded-xl border border-cyan-500/30 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-1.5">
-                        <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                        <span className="text-[11px] font-black text-cyan-300 uppercase tracking-wide">
-                          CMYK Print Color Controller
-                        </span>
-                      </div>
-                      {(() => {
-                        const currentCmyk = hexToCmyk(selectedElement.color || '#0e1838');
-                        return (
-                          <div className="flex items-center space-x-1.5">
-                            <span
-                              className="w-4 h-4 rounded-md border border-white/20 shadow-xs inline-block"
-                              style={{ backgroundColor: selectedElement.color || '#0e1838' }}
-                            />
-                            <span className="font-mono text-[10px] font-bold text-cyan-200">
-                              {formatCmykDisplay(currentCmyk)}
-                            </span>
-                          </div>
-                        );
-                      })()}
-                    </div>
-
-                    {/* CMYK 4-Channel Sliders */}
-                    {(() => {
-                      const cur = hexToCmyk(selectedElement.color || '#0e1838');
-                      const handleCmykChange = (channel: keyof CmykColor, val: number) => {
-                        const next: CmykColor = { ...cur, [channel]: val };
-                        const nextHex = cmykToHex(next);
-                        updateSelectedElement({ color: nextHex });
-                      };
-
-                      return (
-                        <div className="grid grid-cols-2 gap-2 text-[10px]">
-                          {/* Cyan */}
-                          <div className="bg-slate-900/90 p-1.5 rounded-lg border border-cyan-500/20 space-y-1">
-                            <div className="flex justify-between font-bold text-cyan-400">
-                              <span>Cyan (C)</span>
-                              <span>{cur.c}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={cur.c}
-                              onChange={(e) => handleCmykChange('c', Number(e.target.value))}
-                              className="w-full accent-cyan-400 cursor-pointer h-1.5"
-                            />
-                          </div>
-
-                          {/* Magenta */}
-                          <div className="bg-slate-900/90 p-1.5 rounded-lg border border-pink-500/20 space-y-1">
-                            <div className="flex justify-between font-bold text-pink-400">
-                              <span>Magenta (M)</span>
-                              <span>{cur.m}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={cur.m}
-                              onChange={(e) => handleCmykChange('m', Number(e.target.value))}
-                              className="w-full accent-pink-400 cursor-pointer h-1.5"
-                            />
-                          </div>
-
-                          {/* Yellow */}
-                          <div className="bg-slate-900/90 p-1.5 rounded-lg border border-amber-500/20 space-y-1">
-                            <div className="flex justify-between font-bold text-amber-400">
-                              <span>Yellow (Y)</span>
-                              <span>{cur.y}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={cur.y}
-                              onChange={(e) => handleCmykChange('y', Number(e.target.value))}
-                              className="w-full accent-amber-400 cursor-pointer h-1.5"
-                            />
-                          </div>
-
-                          {/* Key / Black */}
-                          <div className="bg-slate-900/90 p-1.5 rounded-lg border border-slate-500/20 space-y-1">
-                            <div className="flex justify-between font-bold text-slate-300">
-                              <span>Key/Black (K)</span>
-                              <span>{cur.k}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={cur.k}
-                              onChange={(e) => handleCmykChange('k', Number(e.target.value))}
-                              className="w-full accent-slate-400 cursor-pointer h-1.5"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Certified CMYK Swatch Presets */}
-                    <div className="space-y-1 pt-1 border-t border-slate-800">
-                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                        Certified Print CMYK Swatches:
-                      </div>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {CMYK_PRESETS.map((preset) => {
-                          const isSelected = selectedElement.color?.toLowerCase() === preset.hex.toLowerCase();
-                          return (
-                            <button
-                              key={preset.name}
-                              type="button"
-                              onClick={() => updateSelectedElement({ color: preset.hex })}
-                              className={`p-1 rounded-lg text-left transition-all border ${
-                                isSelected
-                                  ? 'bg-blue-600/30 border-blue-400 ring-1 ring-blue-400'
-                                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800'
-                              }`}
-                              title={`${preset.name}: C:${preset.cmyk.c}% M:${preset.cmyk.m}% Y:${preset.cmyk.y}% K:${preset.cmyk.k}%`}
-                            >
-                              <div className="flex items-center space-x-1.5">
-                                <span
-                                  className="w-3 h-3 rounded-full shrink-0 border border-white/20"
-                                  style={{ backgroundColor: preset.hex }}
-                                />
-                                <span className="text-[9px] font-bold text-slate-300 truncate">
-                                  {preset.name.split(' ')[0]}
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+                  <CmykColorController
+                    color={selectedElement.color || '#0e1838'}
+                    onChange={(newHex) => updateSelectedElement({ color: newHex })}
+                  />
 
                   {/* Vertical Position Slider & Quick Actions */}
                   <div className="space-y-2 pt-2 border-t border-slate-800">

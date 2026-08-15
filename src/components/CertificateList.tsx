@@ -94,8 +94,9 @@ export const CertificateList: React.FC<CertificateListProps> = ({
       await downloadCombinedPdf(template, targetList, branding, (cur, tot) => {
         setExportProgress({ current: cur, total: tot });
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Export failed:', err);
+      alert('Failed to generate combined PDF: ' + (err?.message || 'Unknown error.'));
     } finally {
       setIsExporting(false);
     }
@@ -111,8 +112,9 @@ export const CertificateList: React.FC<CertificateListProps> = ({
       await downloadCertificatesZip(template, targetList, branding, (cur, tot) => {
         setExportProgress({ current: cur, total: tot });
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('ZIP export failed:', err);
+      alert('Failed to generate ZIP: ' + (err?.message || 'Unknown error.'));
     } finally {
       setIsExporting(false);
     }

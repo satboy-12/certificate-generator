@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
+import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import {
@@ -422,6 +423,35 @@ export async function renderCertificateToCanvas(
   );
 }
 
+// Helper: Convert canvas to high-performance JPEG bytes for PDF embedding without memory bloat
+async function canvasToJpgBytes(canvas: HTMLCanvasElement, quality = 0.95): Promise<Uint8Array> {
+  return new Promise<Uint8Array>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          try {
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
+            const base64 = dataUrl.split(',')[1];
+            const binaryStr = atob(base64);
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+            }
+            resolve(bytes);
+          } catch (e) {
+            reject(e);
+          }
+          return;
+        }
+        blob.arrayBuffer().then((buf) => resolve(new Uint8Array(buf))).catch(reject);
+      },
+      'image/jpeg',
+      quality
+    );
+  });
+}
+
 // Convert Canvas to High Quality PDF Blob/Doc with Maximum Speed
 export async function createPdfFromTemplate(
   template: CertificateTemplate,
@@ -431,7 +461,7 @@ export async function createPdfFromTemplate(
   customElementsOverridden?: CanvasElement[],
   preloadedStaticCanvas?: HTMLCanvasElement,
   reusableCanvas?: HTMLCanvasElement
-): Promise<{ doc: jsPDF; filename: string; dataUrl?: string }> {
+): Promise<{ doc: jsPDF; pdfBytes: Uint8Array; filename: string }> {
   const offscreenCanvas = reusableCanvas || document.createElement('canvas');
   await renderCertificateToCanvas(
     offscreenCanvas,
@@ -444,25 +474,37 @@ export async function createPdfFromTemplate(
   );
 
   const orientation = template.size.orientation === 'landscape' ? 'l' : 'p';
-  const unit = 'mm';
   const widthMm = template.size.width;
   const heightMm = template.size.height;
+  const widthPt = (widthMm * 72) / 25.4;
+  const heightPt = (heightMm * 72) / 25.4;
+
+  const pdfDoc = await PDFDocument.create();
+  const jpgBytes = await canvasToJpgBytes(offscreenCanvas, 0.96);
+  const embeddedImage = await pdfDoc.embedJpg(jpgBytes);
+  const page = pdfDoc.addPage([widthPt, heightPt]);
+  page.drawImage(embeddedImage, {
+    x: 0,
+    y: 0,
+    width: widthPt,
+    height: heightPt,
+  });
+
+  const pdfBytes = await pdfDoc.save();
 
   const pdf = new jsPDF({
     orientation,
-    unit,
+    unit: 'mm',
     format: [widthMm, heightMm],
     compress: true,
   });
-
-  // Direct canvas pass-through for fastest lossless embedding
-  pdf.addImage(offscreenCanvas, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
 
   const safeRecipient = (data['NAME'] || data['Name'] || 'Certificate').replace(/[^a-zA-Z0-9_-]/g, '_');
   const filename = `${certNumber}_${safeRecipient}.pdf`;
 
   return {
     doc: pdf,
+    pdfBytes,
     filename,
   };
 }
@@ -473,7 +515,12 @@ export async function downloadCertificatePdf(
   cert: GeneratedCertificate,
   branding: BrandingSettings
 ): Promise<void> {
-  const { doc, filename } = await createPdfFromTemplate(
+  const offscreenCanvas = document.createElement('canvas');
+  offscreenCanvas.width = template.size.pxWidth;
+  offscreenCanvas.height = template.size.pxHeight;
+
+  await renderCertificateToCanvas(
+    offscreenCanvas,
     template,
     cert.data,
     cert.certificateNumber,
@@ -481,11 +528,29 @@ export async function downloadCertificatePdf(
     cert.customElementsOverridden
   );
 
-  const blob = doc.output('blob');
+  const widthPt = (template.size.width * 72) / 25.4;
+  const heightPt = (template.size.height * 72) / 25.4;
+
+  const pdfDoc = await PDFDocument.create();
+  const jpgBytes = await canvasToJpgBytes(offscreenCanvas, 0.96);
+  const embeddedImage = await pdfDoc.embedJpg(jpgBytes);
+  const page = pdfDoc.addPage([widthPt, heightPt]);
+  page.drawImage(embeddedImage, {
+    x: 0,
+    y: 0,
+    width: widthPt,
+    height: heightPt,
+  });
+
+  const safeRecipient = (cert.data['NAME'] || cert.data['Name'] || cert.recipientName || 'Certificate').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `${cert.certificateNumber}_${safeRecipient}.pdf`;
+
+  const pdfBytes = await pdfDoc.save();
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
   saveAs(blob, filename);
 }
 
-// Export multiple selected or all certificates into a single multi-page PDF document (High Speed)
+// Export multiple selected or all certificates into a single multi-page PDF document (Binary Stream Architecture - Supports 1 to 5000+ certificates without string limits)
 export async function downloadCombinedPdf(
   template: CertificateTemplate,
   certificates: GeneratedCertificate[],
@@ -494,16 +559,9 @@ export async function downloadCombinedPdf(
 ): Promise<void> {
   if (certificates.length === 0) return;
 
-  const orientation = template.size.orientation === 'landscape' ? 'l' : 'p';
-  const widthMm = template.size.width;
-  const heightMm = template.size.height;
-
-  const combinedPdf = new jsPDF({
-    orientation,
-    unit: 'mm',
-    format: [widthMm, heightMm],
-    compress: true,
-  });
+  const pdfDoc = await PDFDocument.create();
+  const widthPt = (template.size.width * 72) / 25.4;
+  const heightPt = (template.size.height * 72) / 25.4;
 
   // Pre-render static background canvas once
   const staticCanvas = await createStaticLayerCanvas(template, branding);
@@ -513,9 +571,6 @@ export async function downloadCombinedPdf(
 
   for (let i = 0; i < certificates.length; i++) {
     const cert = certificates[i];
-    if (i > 0) {
-      combinedPdf.addPage([widthMm, heightMm], orientation);
-    }
 
     await renderCertificateToCanvas(
       offscreenCanvas,
@@ -527,8 +582,15 @@ export async function downloadCombinedPdf(
       staticCanvas
     );
 
-    // Direct canvas pass-through avoids expensive base64 encoding overhead
-    combinedPdf.addImage(offscreenCanvas, 'PNG', 0, 0, widthMm, heightMm, undefined, 'FAST');
+    const jpgBytes = await canvasToJpgBytes(offscreenCanvas, 0.95);
+    const embeddedImage = await pdfDoc.embedJpg(jpgBytes);
+    const page = pdfDoc.addPage([widthPt, heightPt]);
+    page.drawImage(embeddedImage, {
+      x: 0,
+      y: 0,
+      width: widthPt,
+      height: heightPt,
+    });
 
     if (onProgress && (i % 5 === 0 || i === certificates.length - 1)) {
       onProgress(i + 1, certificates.length);
@@ -537,7 +599,8 @@ export async function downloadCombinedPdf(
     }
   }
 
-  const blob = combinedPdf.output('blob');
+  const pdfBytes = await pdfDoc.save();
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
   saveAs(blob, `BSROCKS_SeventhSense_Certificates_Combined_${Date.now()}.pdf`);
 }
 
@@ -555,9 +618,10 @@ export async function downloadCertificatesZip(
 
   // Pre-render static background canvas once for all certificates
   const staticCanvas = await createStaticLayerCanvas(template, branding);
+  const widthPt = (template.size.width * 72) / 25.4;
+  const heightPt = (template.size.height * 72) / 25.4;
 
-  // Parallel batches of 8-12 certificates with dedicated offscreen canvases
-  const CONCURRENCY = 10;
+  const CONCURRENCY = 8;
   let completedCount = 0;
 
   for (let i = 0; i < certificates.length; i += CONCURRENCY) {
@@ -566,7 +630,7 @@ export async function downloadCertificatesZip(
       batch.map(async (cert, bIdx) => {
         const globalIdx = i + bIdx;
         const rowNumStr = String(globalIdx + 1).padStart(3, '0');
-        const safeName = cert.recipientName.replace(/[^a-zA-Z0-9]/g, '-');
+        const safeName = (cert.recipientName || 'Recipient').replace(/[^a-zA-Z0-9]/g, '-');
         const filename = `${rowNumStr}-${safeName}.pdf`;
 
         // Dedicated canvas per concurrent task for thread-safe canvas rendering
@@ -574,18 +638,29 @@ export async function downloadCertificatesZip(
         workerCanvas.width = template.size.pxWidth;
         workerCanvas.height = template.size.pxHeight;
 
-        const { doc } = await createPdfFromTemplate(
+        await renderCertificateToCanvas(
+          workerCanvas,
           template,
           cert.data,
           cert.certificateNumber,
           branding,
           cert.customElementsOverridden,
-          staticCanvas,
-          workerCanvas
+          staticCanvas
         );
 
-        const pdfArrayBuffer = doc.output('arraybuffer');
-        folder?.file(filename, pdfArrayBuffer);
+        const jpgBytes = await canvasToJpgBytes(workerCanvas, 0.96);
+        const singleDoc = await PDFDocument.create();
+        const embeddedImage = await singleDoc.embedJpg(jpgBytes);
+        const page = singleDoc.addPage([widthPt, heightPt]);
+        page.drawImage(embeddedImage, {
+          x: 0,
+          y: 0,
+          width: widthPt,
+          height: heightPt,
+        });
+
+        const pdfBytes = await singleDoc.save();
+        folder?.file(filename, pdfBytes);
 
         completedCount++;
       })
