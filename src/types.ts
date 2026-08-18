@@ -84,7 +84,7 @@ export interface CertificateTemplate {
 
 export interface DataRow {
   _rowId: string;
-  [key: string]: string; // Column header -> Cell value e.g., Name: 'Sathya Sai', Event: 'Tech Fest'
+  [key: string]: string; // Column header -> Cell value e.g., Name: 'John Doe', Event: 'Tech Fest'
 }
 
 export interface Dataset {

@@ -509,7 +509,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
               dynamicFieldsMap.set(key, {
                 key,
                 label: key,
-                defaultValue: key === 'NAME' ? 'Sathya Sai JS' : key,
+                defaultValue: key === 'NAME' ? 'NAME' : key,
               });
             }
           });
@@ -544,7 +544,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
     if (step === 'preview_first' && firstPreviewCanvasRef.current && rows.length > 0) {
       const activeTpl = buildActiveTemplateObject();
       const firstRow = rows[0];
-      const firstName = firstRow[selectedNameCol] || 'Sathya Sai JS';
+      const firstName = firstRow[selectedNameCol] || 'NAME';
       const sampleData = { ...firstRow, NAME: firstName };
 
       renderCertificateToCanvas(
@@ -962,9 +962,14 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                 <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 font-extrabold text-[11px] rounded-full">
                   {templateElements.length} Content {templateElements.length === 1 ? 'Layer' : 'Layers'}
                 </span>
+                {templateDetails && (
+                  <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 font-extrabold text-[11px] rounded-full flex items-center gap-1">
+                    <span>📐 Adapted: {templateDetails.width} × {templateDetails.height} px ({templateDetails.orientation})</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                Add recipient names (<span className="font-mono font-bold text-blue-600">{'{{NAME}}'}</span>) and custom content fields (Record Title, Date, Signatures, Static Text) over the master template.
+                Workspace and bounding boxes are automatically adapted to your uploaded template ({templateDetails?.width || 794} × {templateDetails?.height || 1123} px, {templateDetails?.paperSizeName || 'Exact Size'}). Add recipient names (<span className="font-mono font-bold text-blue-600">{'{{NAME}}'}</span>) and custom content fields.
               </p>
             </div>
 
@@ -1395,9 +1400,10 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                       const leftPct = (el.x / w) * 100;
                       const widthPct = (el.width / w) * 100;
 
-                      // Display sample text (e.g. Sathya Sai JS for NAME or raw text)
+                      // Display sample text (e.g. NAME or first row name or raw text)
                       let displayText = el.text || el.name;
-                      if (displayText.includes('{{NAME}}')) displayText = displayText.replace('{{NAME}}', 'Sathya Sai JS');
+                      const sampleNameValue = rows.length > 0 && rows[0][selectedNameCol] ? rows[0][selectedNameCol] : 'NAME';
+                      if (displayText.includes('{{NAME}}')) displayText = displayText.replace('{{NAME}}', sampleNameValue);
                       if (displayText.includes('{{Record Title}}')) displayText = displayText.replace('{{Record Title}}', 'Fastest Mental Calculation');
                       if (displayText.includes('{{DATE}}')) displayText = displayText.replace('{{DATE}}', '12 August 2026');
 
@@ -1669,7 +1675,7 @@ export const TemplateUploadWorkflow: React.FC<TemplateUploadWorkflowProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Verify recipient name placement on Excel Row 1 (<span className="font-bold text-blue-700">{rows[0]?.[selectedNameCol] || 'Sathya Sai JS'}</span>) before bulk generating
+                Verify recipient name placement on Excel Row 1 (<span className="font-bold text-blue-700">{rows[0]?.[selectedNameCol] || 'NAME'}</span>) before bulk generating
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

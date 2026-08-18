@@ -251,7 +251,7 @@ function seedDefaultData(): void {
   const defaultUser: UserProfile = {
     id: 'usr_admin_01',
     email: 'admin@bsrocks.com',
-    displayName: 'Sathya Sai (Admin)',
+    displayName: 'Administrator',
     role: 'admin',
     organization: 'BSROCKS × SeventhSense',
   };
@@ -283,7 +283,7 @@ function seedDefaultData(): void {
       sizePortraitA4.pxHeight,
       'VANDE BHARATAM 2026',
       "WORLD'S LARGEST INDIAN NATIONAL FLAG FORMATION BY BHARATANATYAM PERFORMERS",
-      'Sathya Sai JS',
+      'NAME',
       '',
       'SSWR/IND/2026/1014'
     ),
@@ -309,7 +309,7 @@ function seedDefaultData(): void {
       },
       {
         _rowId: 'row_vb_2',
-        Name: 'SATHYA SAI',
+        Name: 'S. MEENAKSHI',
         Event: 'VANDE BHARATAM 2026',
         Record_Title: "WORLD'S LARGEST INDIAN NATIONAL FLAG FORMATION BY BHARATANATYAM PERFORMERS",
         Guidance: 'GURU HARIPRIYA MOHANKUMAR, SRI VIRUDHAGIRISVARAR NATYAKSHETRA',
@@ -359,9 +359,9 @@ function seedDefaultData(): void {
       projectId: proj1Id,
       templateId: tpl1Id,
       certificateNumber: 'SSWR/IND/2026/1015',
-      recipientName: 'SATHYA SAI',
+      recipientName: 'S. MEENAKSHI',
       data: {
-        NAME: 'SATHYA SAI',
+        NAME: 'S. MEENAKSHI',
         EVENT_NAME: 'VANDE BHARATAM 2026',
         RECORD_TITLE: "WORLD'S LARGEST INDIAN NATIONAL FLAG FORMATION BY BHARATANATYAM PERFORMERS",
         RECORD_ID: 'SSWR/IND/2026/1015',
@@ -443,7 +443,7 @@ function seedDefaultData(): void {
       sizePortraitA4.pxHeight,
       'NAILATHON INDIA 2026',
       'THE ULTIMATE WORLD RECORD CHALLENGE - INDIA FLAG-THEMED NAIL EXTENSION & NAIL ART',
-      'Sathya Sai JS',
+      'NAME',
       '',
       'SSWR/IND/2026/1013'
     ),
@@ -529,7 +529,7 @@ export function initializeStorageIfNeeded(): void {
       cachedUser = safeLocalStorageGet<UserProfile>(KEYS.USER, {
         id: 'usr_admin_01',
         email: 'admin@bsrocks.com',
-        displayName: 'Sathya Sai (Admin)',
+        displayName: 'Administrator',
         role: 'admin',
         organization: 'BSROCKS × SeventhSense',
       });

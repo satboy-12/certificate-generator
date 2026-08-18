@@ -8,7 +8,6 @@ import {
   Award,
   QrCode,
   Settings,
-  Sparkles,
 } from 'lucide-react';
 
 export type NavTab = 'dashboard' | 'upload_flow' | 'projects' | 'editor' | 'import' | 'certificates' | 'verification' | 'settings';
@@ -104,26 +103,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, certif
           );
         })}
       </nav>
-
-      {/* Footer Storage / System Gauge */}
-      <div className="p-4 border-t border-slate-800">
-        <div className="bg-slate-800/90 rounded-lg p-3 space-y-2 border border-slate-700/50">
-          <div className="flex items-center justify-between text-xs text-slate-300 font-medium">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-              Engine Storage
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">42%</span>
-          </div>
-          <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 w-[42%] transition-all" />
-          </div>
-          <div className="text-[10px] text-slate-400 flex justify-between font-mono pt-0.5">
-            <span>8.4 GB of 20 GB</span>
-            <span className="text-emerald-400">Online</span>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 };

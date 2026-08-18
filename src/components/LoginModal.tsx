@@ -16,7 +16,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     const user: UserProfile = {
       id: `usr_${Date.now()}`,
       email: email.trim(),
-      displayName: email.includes('admin') ? 'Sathya Sai (Admin)' : 'Staff Operator',
+      displayName: email.includes('admin') ? 'Administrator' : 'Staff Operator',
       role,
       organization: 'BSROCKS × SeventhSense',
     };

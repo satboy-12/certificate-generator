@@ -174,7 +174,7 @@ export const MASTER_TEMPLATE_1014_BACKGROUND_SVG = SEVENTH_SENSE_MASTER_ORIGINAL
 export const MASTER_TEMPLATE_1013_BACKGROUND_SVG = SEVENTH_SENSE_MASTER_ORIGINAL_BACKGROUND_SVG;
 
 export const DEFAULT_DYNAMIC_FIELDS: DynamicFieldDef[] = [
-  { key: 'NAME', label: 'Recipient Name', defaultValue: 'Sathya Sai JS' },
+  { key: 'NAME', label: 'Recipient Name', defaultValue: 'NAME' },
   { key: 'EVENT_NAME', label: 'Event Title', defaultValue: 'VANDE BHARATAM 2026' },
   { key: 'RECORD_TITLE', label: 'Record Title', defaultValue: "WORLD'S LARGEST INDIAN NATIONAL FLAG FORMATION BY BHARATANATYAM PERFORMERS" },
   { key: 'RECORD_ID', label: 'Record ID / Certificate ID', defaultValue: 'SSWR/IND/2026/1014' },
@@ -204,7 +204,7 @@ export function createSeventhSenseOriginalElements(
   height: number,
   eventName: string = 'VANDE BHARATAM 2026',
   recordTitle: string = "WORLD'S LARGEST INDIAN NATIONAL FLAG FORMATION BY BHARATANATYAM PERFORMERS",
-  recipientName: string = 'Sathya Sai JS',
+  recipientName: string = 'NAME',
   citationText: string = '',
   recordId: string = 'SSWR/IND/2026/1014'
 ): CanvasElement[] {

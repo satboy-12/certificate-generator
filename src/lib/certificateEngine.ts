@@ -23,6 +23,7 @@ import { calculateAutoFitFontSize } from './editorStylingHelper';
 const imageCache = new Map<string, HTMLImageElement>();
 const imagePendingMap = new Map<string, Promise<HTMLImageElement | null>>();
 const qrCache = new Map<string, string>();
+const staticLayerCache = new Map<string, HTMLCanvasElement>();
 
 export async function getLoadedImage(src: string): Promise<HTMLImageElement | null> {
   if (!src) return null;
@@ -121,16 +122,22 @@ export async function createStaticLayerCanvas(
   branding: BrandingSettings,
   customElements?: CanvasElement[]
 ): Promise<HTMLCanvasElement> {
+  const elements = customElements || template.elements;
+  const cacheKey = `${template.id}_${template.updatedAt || '0'}_${template.backgroundUrl || 'none'}_${elements.length}_${template.size.pxWidth}x${template.size.pxHeight}`;
+
+  if (staticLayerCache.has(cacheKey)) {
+    return staticLayerCache.get(cacheKey)!;
+  }
+
   const canvas = document.createElement('canvas');
   const width = template.size.pxWidth;
   const height = template.size.pxHeight;
   canvas.width = width;
   canvas.height = height;
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) return canvas;
 
-  ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = template.backgroundColor || '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
@@ -141,7 +148,6 @@ export async function createStaticLayerCanvas(
     }
   }
 
-  const elements = customElements || template.elements;
   const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
 
   for (const el of sortedElements) {
@@ -268,6 +274,7 @@ export async function createStaticLayerCanvas(
     ctx.restore();
   }
 
+  staticLayerCache.set(cacheKey, canvas);
   return canvas;
 }
 
@@ -604,7 +611,7 @@ export async function downloadCombinedPdf(
   saveAs(blob, `BSROCKS_SeventhSense_Certificates_Combined_${Date.now()}.pdf`);
 }
 
-// Export all certificates as individual PDFs bundled inside a single ZIP file (Ultra High Speed Concurrency)
+// Export all certificates as individual PDFs bundled inside a single ZIP file (Ultra High Speed Concurrency & Zero GC Churn)
 export async function downloadCertificatesZip(
   template: CertificateTemplate,
   certificates: GeneratedCertificate[],
@@ -621,11 +628,19 @@ export async function downloadCertificatesZip(
   const widthPt = (template.size.width * 72) / 25.4;
   const heightPt = (template.size.height * 72) / 25.4;
 
-  const CONCURRENCY = 8;
+  const POOL_SIZE = 6;
+  // Pre-allocate a persistent worker pool to eliminate GC allocations during rendering
+  const canvasPool = Array.from({ length: POOL_SIZE }, () => {
+    const c = document.createElement('canvas');
+    c.width = template.size.pxWidth;
+    c.height = template.size.pxHeight;
+    return c;
+  });
+
   let completedCount = 0;
 
-  for (let i = 0; i < certificates.length; i += CONCURRENCY) {
-    const batch = certificates.slice(i, i + CONCURRENCY);
+  for (let i = 0; i < certificates.length; i += POOL_SIZE) {
+    const batch = certificates.slice(i, i + POOL_SIZE);
     await Promise.all(
       batch.map(async (cert, bIdx) => {
         const globalIdx = i + bIdx;
@@ -633,10 +648,8 @@ export async function downloadCertificatesZip(
         const safeName = (cert.recipientName || 'Recipient').replace(/[^a-zA-Z0-9]/g, '-');
         const filename = `${rowNumStr}-${safeName}.pdf`;
 
-        // Dedicated canvas per concurrent task for thread-safe canvas rendering
-        const workerCanvas = document.createElement('canvas');
-        workerCanvas.width = template.size.pxWidth;
-        workerCanvas.height = template.size.pxHeight;
+        // Reuse persistent worker canvas
+        const workerCanvas = canvasPool[bIdx];
 
         await renderCertificateToCanvas(
           workerCanvas,

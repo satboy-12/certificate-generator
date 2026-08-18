@@ -67,7 +67,7 @@ export const CertificateEditor: React.FC<CertificateEditorProps> = ({
 
   // Sample preview row data
   const sampleData: Record<string, string> = {
-    NAME: 'Sathya Sai',
+    NAME: 'RECIPIENT NAME',
     EVENT_NAME: 'Cyber Security Workshop 2026',
     DATE: '11 August 2026',
     CATEGORY: 'Participant',

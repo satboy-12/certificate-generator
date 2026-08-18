@@ -172,7 +172,7 @@ export function downloadSampleExcelTemplate(
 ): void {
   const sampleData = [
     {
-      Name: 'Sathya Sai',
+      Name: 'John Doe',
       Event: 'Cyber Security Workshop 2026',
       Category: 'Participant',
       Date: '11 August 2026',
